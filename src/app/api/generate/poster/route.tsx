@@ -15,6 +15,10 @@ export async function GET(req: Request) {
   await prisma.kontenPromo.create({ data: { appId: app.id, tipe: 'poster' } })
 
   const fiturTampil = app.fitur.slice(0, 3)
+  // Tampilkan versi bersih (tanpa https:// & trailing slash) supaya rapi
+  // di poster. Kalau url belum diisi di Kelola App, pakai domain utama
+  // Zomet sebagai fallback — poster tidak boleh tampil tanpa link sama sekali.
+  const linkTampil = (app.url || 'zomet.my.id').replace(/^https?:\/\//, '').replace(/\/$/, '')
 
   return new ImageResponse(
     (
@@ -61,24 +65,27 @@ export async function GET(req: Request) {
           ))}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ fontSize: 42, fontWeight: 800, color: app.accent, display: 'flex' }}>Rp 100.000</div>
-            <div style={{ fontSize: 22, color: '#4A453D', display: 'flex' }}>/bulan</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ fontSize: 42, fontWeight: 800, color: app.accent, display: 'flex' }}>Rp 100.000</div>
+              <div style={{ fontSize: 22, color: '#4A453D', display: 'flex' }}>/bulan</div>
+            </div>
+            <div
+              style={{
+                fontSize: 24,
+                fontWeight: 700,
+                color: '#FFFFFF',
+                backgroundColor: app.accent,
+                padding: '16px 32px',
+                borderRadius: 999,
+                display: 'flex',
+              }}
+            >
+              Coba Sekarang
+            </div>
           </div>
-          <div
-            style={{
-              fontSize: 24,
-              fontWeight: 700,
-              color: '#FFFFFF',
-              backgroundColor: app.accent,
-              padding: '16px 32px',
-              borderRadius: 999,
-              display: 'flex',
-            }}
-          >
-            Coba Sekarang
-          </div>
+          <div style={{ fontSize: 24, fontWeight: 600, color: app.accent, display: 'flex' }}>{linkTampil}</div>
         </div>
       </div>
     ),
