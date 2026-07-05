@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface PromoApp {
   id: number
@@ -57,6 +57,7 @@ export default function VideoPage() {
   }
 
   function mulaiPolling(jobId: number) {
+    if (pollRef.current) clearInterval(pollRef.current)
     pollRef.current = setInterval(async () => {
       const res = await fetch(`/api/video/${jobId}/status`)
       if (!res.ok) return
