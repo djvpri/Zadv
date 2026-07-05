@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model PromoApp {
+  id        Int      @id @default(autoincrement())
+  nama      String
+  emoji     String
+  tagline   String
+  fitur     String[]
+  accent    String
+  tint      String
+  url       String?
+  aktif     Boolean  @default(true)
+  urutan    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  kontens   KontenPromo[]
+}
+
+model KontenPromo {
+  id        Int      @id @default(autoincrement())
+  appId     Int
+  app       PromoApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+  tipe      String   // 'caption' | 'poster'
+  platform  String?  // 'instagram' | 'whatsapp' | 'facebook' (khusus caption)
+  tone      String?
+  teks      String?  // isi caption (khusus tipe caption)
+  createdAt DateTime @default(now())
+
+  @@index([appId])
+  @@index([createdAt])
+}
