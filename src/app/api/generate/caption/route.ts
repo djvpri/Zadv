@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
 import prisma from '@/lib/db'
-import { getAnthropicKey } from '@/lib/secrets'
+import { getGeminiKey } from '@/lib/secrets'
+
+const GEMINI_MODEL = 'gemini-3.5-flash'
 
 const PLATFORM_LABEL: Record<string, string> = {
   instagram: 'Instagram',
@@ -48,17 +49,19 @@ Aturan:
 
   let teks: string
   try {
-    const anthropic = new Anthropic({ apiKey: getAnthropicKey() })
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-5',
-      max_tokens: 500,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    teks = msg.content
-      .filter((c): c is Anthropic.TextBlock => c.type === 'text')
-      .map((c) => c.text)
-      .join('\n')
-      .trim()
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${getGeminiKey()}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      }
+    )
+    const data = await res.json()
+    if (!res.ok) {
+      throw new Error(data?.error?.message || `Gemini API error ${res.status}`)
+    }
+    teks = (data.candidates?.[0]?.content?.parts?.[0]?.text || '').trim()
     if (!teks) throw new Error('Respons kosong')
   } catch (e) {
     console.error('Gagal generate caption:', e)

@@ -3,14 +3,14 @@
 Internal tool untuk generate caption & poster promosi tiap app di ekosistem Zomet. Cuma untuk Andi sendiri — login pakai password tunggal, bukan SSO Z One.
 
 ## Fitur
-- **Meja Cetak** — pilih app, atur platform & nada bicara, generate caption via Claude API. Poster bisa diunduh sebagai PNG.
+- **Meja Cetak** — pilih app, atur platform & nada bicara, generate caption via Gemini API. Poster bisa diunduh sebagai PNG.
 - **Riwayat** — semua caption yang pernah dibuat tersimpan, bisa disalin ulang.
 - **Kelola App** — tambah/edit/hapus app yang mau dipromosikan (nama, tagline, fitur, warna).
 
 ## Setup lokal
 ```bash
 npm install
-cp .env.example .env   # isi DATABASE_URL, JWT_SECRET, ADMIN_PASSWORD, ANTHROPIC_API_KEY
+cp .env.example .env   # isi DATABASE_URL, JWT_SECRET, ADMIN_PASSWORD, GEMINI_API_KEY
 npx prisma db push
 npm run seed            # isi 8 app awal (ZGold, ZBengkel, dst)
 npm run dev
@@ -22,7 +22,7 @@ npm run dev
 | `DATABASE_URL` | PostgreSQL Railway |
 | `JWT_SECRET` | random panjang, buat sendiri (`openssl rand -hex 32`) |
 | `ADMIN_PASSWORD` | password login kamu sendiri |
-| `ANTHROPIC_API_KEY` | API key dari console.anthropic.com |
+| `GEMINI_API_KEY` | API key dari aistudio.google.com |
 
 ## Setelah deploy pertama kali
 Jalankan sekali di Railway shell:

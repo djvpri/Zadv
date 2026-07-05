@@ -17,6 +17,6 @@ export function getAdminPassword(): string {
   return required('ADMIN_PASSWORD')
 }
 
-export function getAnthropicKey(): string {
-  return required('ANTHROPIC_API_KEY')
+export function getGeminiKey(): string {
+  return required('GEMINI_API_KEY')
 }
