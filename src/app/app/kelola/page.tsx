@@ -38,7 +38,7 @@ export default function KelolaApp() {
   function mulaiEdit(app: PromoApp) {
     setForm({
       nama: app.nama, emoji: app.emoji, tagline: app.tagline,
-      fitur: app.fitur.join(', '), accent: app.accent, tint: app.tint, url: app.url || '',
+      fitur: app.fitur.join('\n'), accent: app.accent, tint: app.tint, url: app.url || '',
     })
     setEdit(app.id)
   }
@@ -47,7 +47,7 @@ export default function KelolaApp() {
     setSaving(true)
     const payload = {
       nama: form.nama, emoji: form.emoji, tagline: form.tagline,
-      fitur: form.fitur.split(',').map((f) => f.trim()).filter(Boolean),
+      fitur: form.fitur.split('\n').map((f) => f.trim()).filter(Boolean),
       accent: form.accent, tint: form.tint, url: form.url || null,
     }
     const url = edit ? `/api/apps/${edit}` : '/api/apps'
@@ -100,11 +100,12 @@ export default function KelolaApp() {
               placeholder="Tagline singkat"
               className="col-span-2 bg-white/5 border border-white/15 rounded-md px-3 py-2 text-sm outline-none focus:border-[#D8A23D]"
             />
-            <input
+            <textarea
               value={form.fitur}
               onChange={(e) => setForm({ ...form, fitur: e.target.value })}
-              placeholder="Fitur, pisahkan dengan koma"
-              className="col-span-2 bg-white/5 border border-white/15 rounded-md px-3 py-2 text-sm outline-none focus:border-[#D8A23D]"
+              placeholder={'Satu fitur per baris, tekan Enter untuk pisah\nContoh:\nProses transaksi cepat\nSupport tunai, QRIS, dan transfer\nStok otomatis berkurang'}
+              rows={4}
+              className="col-span-2 bg-white/5 border border-white/15 rounded-md px-3 py-2 text-sm outline-none focus:border-[#D8A23D] resize-y font-sans"
             />
             <input
               value={form.url}
