@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 
 const NAV = [
   { href: '/app', label: 'Meja Cetak' },
+  { href: '/app/video', label: 'Video' },
   { href: '/app/riwayat', label: 'Riwayat' },
   { href: '/app/kelola', label: 'Kelola App' },
 ]

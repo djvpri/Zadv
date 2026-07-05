@@ -21,6 +21,7 @@ model PromoApp {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   kontens   KontenPromo[]
+  videoJobs VideoJob[]
 }
 
 model KontenPromo {
@@ -35,4 +36,20 @@ model KontenPromo {
 
   @@index([appId])
   @@index([createdAt])
+}
+
+model VideoJob {
+  id           Int      @id @default(autoincrement())
+  appId        Int?
+  app          PromoApp? @relation(fields: [appId], references: [id], onDelete: SetNull)
+  caption      String   // teks overlay yang diminta (sebelum sanitasi)
+  status       String   @default("pending") // pending | processing | done | error
+  errorMessage String?
+  inputPath    String   // path video asli di volume
+  outputPath   String?  // path hasil olahan, terisi kalau status=done
+  durasiAsli   Float?   // detik, terisi setelah ffprobe jalan
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
 }
