@@ -153,7 +153,8 @@ export async function prosesVideo(
   inputPath: string,
   captionMentah: string,
   outputPath: string,
-  musicPath?: string | null
+  musicPath?: string | null,
+  muteAsli?: boolean
 ): Promise<HasilProses> {
   const dirSementara = path.join(os.tmpdir(), `zadv-video-${randomUUID()}`)
   await fs.mkdir(dirSementara, { recursive: true })
@@ -182,7 +183,7 @@ export async function prosesVideo(
     if (musicPath) {
       const tempOutput = path.join(dirSementara, 'dengan_caption.mp4')
       await bakarCaption(sumberUntukCaption, captionMentah, tempOutput, dirSementara)
-      await mixBacksound(tempOutput, musicPath, outputPath)
+      await mixBacksound(tempOutput, musicPath, outputPath, muteAsli)
     } else {
       await bakarCaption(sumberUntukCaption, captionMentah, outputPath, dirSementara)
     }
@@ -197,21 +198,34 @@ export async function prosesVideo(
 // Mix backsound musik ke video.
 // Strategi: loop musik kalau lebih pendek dari video, ducking 30% volume
 // agar audio asli video tetap terdengar, musik jadi latar belakang.
-async function mixBacksound(videoPath: string, musicPath: string, outputPath: string): Promise<void> {
-  await jalankan('ffmpeg', [
-    '-i', videoPath,
-    '-stream_loop', '-1',   // loop musik sampai video habis
-    '-i', musicPath,
-    '-filter_complex',
-    // amix: campur audio asli (i=0) + musik (i=1)
-    // weights 1 0.3 → musik 30% volume dari audio asli
-    // duration=first → ikut durasi video (input pertama)
-    '[0:a][1:a]amix=inputs=2:duration=first:weights=1 0.3[aout]',
-    '-map', '0:v',          // video dari input pertama
-    '-map', '[aout]',       // audio hasil mix
-    '-c:v', 'copy',         // video tidak di-re-encode (cepat)
-    '-c:a', 'aac',
-    '-shortest',
-    '-y', outputPath,
-  ])
+async function mixBacksound(videoPath: string, musicPath: string, outputPath: string, muteAsli?: boolean): Promise<void> {
+  if (muteAsli) {
+    // Mute audio asli — hanya pakai musik, loop sampai video habis
+    await jalankan('ffmpeg', [
+      '-i', videoPath,
+      '-stream_loop', '-1',
+      '-i', musicPath,
+      '-map', '0:v',
+      '-map', '1:a',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-shortest',
+      '-y', outputPath,
+    ])
+  } else {
+    // Mix audio asli + musik (musik 30% volume)
+    await jalankan('ffmpeg', [
+      '-i', videoPath,
+      '-stream_loop', '-1',
+      '-i', musicPath,
+      '-filter_complex',
+      '[0:a][1:a]amix=inputs=2:duration=first:weights=1 0.3[aout]',
+      '-map', '0:v',
+      '-map', '[aout]',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-shortest',
+      '-y', outputPath,
+    ])
+  }
 }

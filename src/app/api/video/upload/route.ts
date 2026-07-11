@@ -15,7 +15,7 @@ async function prosesDiBackground(jobId: number, inputPath: string, caption: str
   try {
     await prisma.videoJob.update({ where: { id: jobId }, data: { status: 'processing' } })
     const outputPath = path.join(videoDir, `output-${jobId}.mp4`)
-    const hasil = await prosesVideo(inputPath, caption, outputPath, musicPath)
+    const hasil = await prosesVideo(inputPath, caption, outputPath, musicPath, muteAsli)
     await prisma.videoJob.update({
       where: { id: jobId },
       data: { status: 'done', outputPath, durasiAsli: hasil.durasiAsli },
@@ -35,6 +35,7 @@ export async function POST(req: Request) {
   const caption = form.get('caption')
   const appIdRaw = form.get('appId')
   const musicTrackIdRaw = form.get('musicTrackId')
+  const muteAsliRaw = form.get('muteAsli')
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'File video wajib diisi' }, { status: 400 })
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
   })
 
   // Sengaja tidak di-await — client polling status lewat endpoint terpisah.
-  prosesDiBackground(job.id, inputPath, caption, videoDir, musicPath).catch((e) => {
+  prosesDiBackground(job.id, inputPath, caption, videoDir, musicPath, muteAsliRaw === "1").catch((e) => {
     console.error('prosesDiBackground gagal tak terduga:', e)
   })
 

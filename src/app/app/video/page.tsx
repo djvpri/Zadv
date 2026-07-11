@@ -47,6 +47,7 @@ export default function VideoPage() {
   const [error, setError] = useState('')
   const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([])
   const [musicTrackId, setMusicTrackId] = useState<number | null>(null)
+  const [muteAsli, setMuteAsli] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -98,6 +99,7 @@ export default function VideoPage() {
       form.append('caption', caption)
       form.append('appId', String(appId))
       if (musicTrackId) form.append('musicTrackId', String(musicTrackId))
+      if (muteAsli) form.append('muteAsli', '1')
       const res = await fetch('/api/video/upload', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Gagal upload')
@@ -177,6 +179,17 @@ export default function VideoPage() {
             <p className="text-[10px] text-[#8A8378] mt-1">
               Belum ada musik. <a href="/app/musik" className="underline hover:text-[#D4C5A9]">Upload musik dulu →</a>
             </p>
+          )}
+          {musicTrackId && (
+            <label className="flex items-center gap-2 mt-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={muteAsli}
+                onChange={e => setMuteAsli(e.target.checked)}
+                className="accent-[#D8A23D]"
+              />
+              <span className="text-[11px] text-[#8A8378]">Mute audio asli video (hanya musik)</span>
+            </label>
           )}
         </div>
 
