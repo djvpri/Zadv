@@ -9,6 +9,8 @@ import {
   MAX_MUSIC_BYTES, TIPE_MUSIK_DIIZINKAN, isVideoFile,
 } from '@/lib/music-storage'
 
+export const runtime = 'nodejs'
+
 // GET — list semua musik
 export async function GET() {
   const tracks = await prisma.musicTrack.findMany({
