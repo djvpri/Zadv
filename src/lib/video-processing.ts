@@ -149,7 +149,12 @@ export interface HasilProses {
 // Orkestrasi penuh: baca durasi -> (potong 3 zona + gabung, kalau video
 // lebih panjang dari target) -> bakar caption -> tulis ke outputPath.
 // Semua file sementara dibuang di akhir, sukses maupun gagal.
-export async function prosesVideo(inputPath: string, captionMentah: string, outputPath: string): Promise<HasilProses> {
+export async function prosesVideo(
+  inputPath: string,
+  captionMentah: string,
+  outputPath: string,
+  musicPath?: string | null
+): Promise<HasilProses> {
   const dirSementara = path.join(os.tmpdir(), `zadv-video-${randomUUID()}`)
   await fs.mkdir(dirSementara, { recursive: true })
 
@@ -172,10 +177,41 @@ export async function prosesVideo(inputPath: string, captionMentah: string, outp
     // Video sudah <= 60 detik: tidak dipotong sama sekali, caption
     // langsung dibakar ke video asli utuh.
 
-    await bakarCaption(sumberUntukCaption, captionMentah, outputPath, dirSementara)
+    // Kalau ada musicPath → bakar caption dulu ke file sementara,
+    // lalu mix audio musik sebagai backsound di tahap terpisah.
+    if (musicPath) {
+      const tempOutput = path.join(dirSementara, 'dengan_caption.mp4')
+      await bakarCaption(sumberUntukCaption, captionMentah, tempOutput, dirSementara)
+      await mixBacksound(tempOutput, musicPath, outputPath)
+    } else {
+      await bakarCaption(sumberUntukCaption, captionMentah, outputPath, dirSementara)
+    }
+
     const durasiOutput = await getDurasi(outputPath)
     return { durasiAsli, durasiOutput }
   } finally {
     await fs.rm(dirSementara, { recursive: true, force: true }).catch(() => {})
   }
+}
+
+// Mix backsound musik ke video.
+// Strategi: loop musik kalau lebih pendek dari video, ducking 30% volume
+// agar audio asli video tetap terdengar, musik jadi latar belakang.
+async function mixBacksound(videoPath: string, musicPath: string, outputPath: string): Promise<void> {
+  await jalankan('ffmpeg', [
+    '-i', videoPath,
+    '-stream_loop', '-1',   // loop musik sampai video habis
+    '-i', musicPath,
+    '-filter_complex',
+    // amix: campur audio asli (i=0) + musik (i=1)
+    // weights 1 0.3 → musik 30% volume dari audio asli
+    // duration=first → ikut durasi video (input pertama)
+    '[0:a][1:a]amix=inputs=2:duration=first:weights=1 0.3[aout]',
+    '-map', '0:v',          // video dari input pertama
+    '-map', '[aout]',       // audio hasil mix
+    '-c:v', 'copy',         // video tidak di-re-encode (cepat)
+    '-c:a', 'aac',
+    '-shortest',
+    '-y', outputPath,
+  ])
 }

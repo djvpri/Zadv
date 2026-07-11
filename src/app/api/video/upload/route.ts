@@ -11,11 +11,11 @@ export const runtime = 'nodejs'
 // Proses video di background — TIDAK di-await oleh caller (fire-and-forget).
 // Ini aman karena zadv jalan sebagai server Node persisten di Railway
 // (bukan serverless/edge yang mematikan proses setelah response terkirim).
-async function prosesDiBackground(jobId: number, inputPath: string, caption: string, videoDir: string) {
+async function prosesDiBackground(jobId: number, inputPath: string, caption: string, videoDir: string, musicPath?: string | null) {
   try {
     await prisma.videoJob.update({ where: { id: jobId }, data: { status: 'processing' } })
     const outputPath = path.join(videoDir, `output-${jobId}.mp4`)
-    const hasil = await prosesVideo(inputPath, caption, outputPath)
+    const hasil = await prosesVideo(inputPath, caption, outputPath, musicPath)
     await prisma.videoJob.update({
       where: { id: jobId },
       data: { status: 'done', outputPath, durasiAsli: hasil.durasiAsli },
@@ -34,6 +34,7 @@ export async function POST(req: Request) {
   const file = form.get('file')
   const caption = form.get('caption')
   const appIdRaw = form.get('appId')
+  const musicTrackIdRaw = form.get('musicTrackId')
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'File video wajib diisi' }, { status: 400 })
@@ -54,6 +55,16 @@ export async function POST(req: Request) {
     if (Number.isInteger(n)) appId = n
   }
 
+  let musicTrackId: number | null = null
+  let musicPath: string | null = null
+  if (musicTrackIdRaw && typeof musicTrackIdRaw === 'string') {
+    const n = Number(musicTrackIdRaw)
+    if (Number.isInteger(n) && n > 0) {
+      const track = await prisma.musicTrack.findUnique({ where: { id: n } })
+      if (track) { musicTrackId = track.id; musicPath = track.path }
+    }
+  }
+
   const videoDir = await pastikanVideoDir()
   const ext = path.extname(file.name) || '.mp4'
   const inputPath = path.join(videoDir, `input-${randomUUID()}${ext}`)
@@ -61,11 +72,11 @@ export async function POST(req: Request) {
   await fs.writeFile(inputPath, buffer)
 
   const job = await prisma.videoJob.create({
-    data: { appId, caption, inputPath, status: 'pending' },
+    data: { appId, caption, inputPath, status: 'pending', musicTrackId },
   })
 
   // Sengaja tidak di-await — client polling status lewat endpoint terpisah.
-  prosesDiBackground(job.id, inputPath, caption, videoDir).catch((e) => {
+  prosesDiBackground(job.id, inputPath, caption, videoDir, musicPath).catch((e) => {
     console.error('prosesDiBackground gagal tak terduga:', e)
   })
 

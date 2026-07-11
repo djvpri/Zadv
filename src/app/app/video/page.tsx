@@ -17,11 +17,24 @@ interface StatusJob {
   siap: boolean
 }
 
+interface MusicTrack {
+  id: number
+  nama: string
+  durasi: number | null
+}
+
 const LABEL_STATUS: Record<string, string> = {
   pending: 'Menunggu diproses...',
   processing: 'Memotong & menambahkan caption...',
   done: 'Selesai!',
   error: 'Gagal',
+}
+
+function formatDurasi(detik: number | null) {
+  if (!detik) return ''
+  const m = Math.floor(detik / 60)
+  const s = Math.floor(detik % 60)
+  return ` · ${m}:${s.toString().padStart(2, '0')}`
 }
 
 export default function VideoPage() {
@@ -32,6 +45,8 @@ export default function VideoPage() {
   const [uploading, setUploading] = useState(false)
   const [job, setJob] = useState<StatusJob | null>(null)
   const [error, setError] = useState('')
+  const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([])
+  const [musicTrackId, setMusicTrackId] = useState<number | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -44,6 +59,9 @@ export default function VideoPage() {
           setCaption(data[0].tagline)
         }
       })
+    fetch('/api/music')
+      .then(r => r.json())
+      .then(d => setMusicTracks(Array.isArray(d) ? d : []))
   }, [])
 
   useEffect(() => {
@@ -79,6 +97,7 @@ export default function VideoPage() {
       form.append('file', file)
       form.append('caption', caption)
       form.append('appId', String(appId))
+      if (musicTrackId) form.append('musicTrackId', String(musicTrackId))
       const res = await fetch('/api/video/upload', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Gagal upload')
@@ -138,6 +157,27 @@ export default function VideoPage() {
             onChange={(e) => setFile(e.target.files?.[0] || null)}
             className="w-full text-[12px] text-[#B3ACA1] file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-white/10 file:text-[#CFC9BE] file:text-[12px]"
           />
+        </div>
+
+        <div>
+          <p className="text-[11px] text-[#8A8378] mb-1.5">🎵 Backsound (opsional)</p>
+          <select
+            value={musicTrackId ?? ''}
+            onChange={e => setMusicTrackId(e.target.value ? Number(e.target.value) : null)}
+            className="w-full bg-white/5 border border-white/10 rounded-md px-3 py-2 text-[12px] text-[#CFC9BE] focus:outline-none focus:border-[#8B7355]"
+          >
+            <option value="">— Tanpa musik —</option>
+            {musicTracks.map(t => (
+              <option key={t.id} value={t.id}>
+                🎵 {t.nama}{formatDurasi(t.durasi)}
+              </option>
+            ))}
+          </select>
+          {musicTracks.length === 0 && (
+            <p className="text-[10px] text-[#8A8378] mt-1">
+              Belum ada musik. <a href="/app/musik" className="underline hover:text-[#D4C5A9]">Upload musik dulu →</a>
+            </p>
+          )}
         </div>
 
         <button
