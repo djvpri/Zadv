@@ -11,7 +11,17 @@ export const runtime = 'nodejs'
 // Proses video di background — TIDAK di-await oleh caller (fire-and-forget).
 // Ini aman karena zadv jalan sebagai server Node persisten di Railway
 // (bukan serverless/edge yang mematikan proses setelah response terkirim).
-async function prosesDiBackground(jobId: number, inputPath: string, caption: string, videoDir: string, musicPath?: string | null) {
+async function prosesDiBackground(
+  jobId: number,
+  inputPath: string,
+  caption: string,
+  videoDir: string,
+  musicPath?: string | null,
+  muteAsli?: boolean,
+  fadeOut?: boolean,
+  loopMusik?: boolean,
+  mulaiDetik?: number
+) {
   try {
     await prisma.videoJob.update({ where: { id: jobId }, data: { status: 'processing' } })
     const outputPath = path.join(videoDir, `output-${jobId}.mp4`)
