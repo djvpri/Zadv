@@ -154,7 +154,10 @@ export async function prosesVideo(
   captionMentah: string,
   outputPath: string,
   musicPath?: string | null,
-  muteAsli?: boolean
+  muteAsli?: boolean,
+  fadeOut?: boolean,
+  loopMusik?: boolean,
+  mulaiDetik?: number
 ): Promise<HasilProses> {
   const dirSementara = path.join(os.tmpdir(), `zadv-video-${randomUUID()}`)
   await fs.mkdir(dirSementara, { recursive: true })
@@ -183,7 +186,7 @@ export async function prosesVideo(
     if (musicPath) {
       const tempOutput = path.join(dirSementara, 'dengan_caption.mp4')
       await bakarCaption(sumberUntukCaption, captionMentah, tempOutput, dirSementara)
-      await mixBacksound(tempOutput, musicPath, outputPath, muteAsli)
+      await mixBacksound(tempOutput, musicPath, outputPath, { muteAsli, fadeOut, loopMusik, mulaiDetik })
     } else {
       await bakarCaption(sumberUntukCaption, captionMentah, outputPath, dirSementara)
     }
@@ -198,34 +201,65 @@ export async function prosesVideo(
 // Mix backsound musik ke video.
 // Strategi: loop musik kalau lebih pendek dari video, ducking 30% volume
 // agar audio asli video tetap terdengar, musik jadi latar belakang.
-async function mixBacksound(videoPath: string, musicPath: string, outputPath: string, muteAsli?: boolean): Promise<void> {
+interface OpsiMix {
+  muteAsli?: boolean
+  fadeOut?: boolean
+  loopMusik?: boolean
+  mulaiDetik?: number
+}
+
+async function mixBacksound(
+  videoPath: string,
+  musicPath: string,
+  outputPath: string,
+  opsi: OpsiMix = {}
+): Promise<void> {
+  const { muteAsli = false, fadeOut = true, loopMusik = true, mulaiDetik = 0 } = opsi
+
+  // Dapatkan durasi video untuk hitung titik fade out
+  const durasiVideo = await getDurasi(videoPath)
+  const fadeStart = Math.max(0, durasiVideo - 3)
+
+  const args: string[] = []
+
+  // Input video
+  args.push('-i', videoPath)
+
+  // Input musik — dengan offset mulai (opsi D)
+  if (mulaiDetik > 0) args.push('-ss', String(mulaiDetik))
+  if (loopMusik) args.push('-stream_loop', '-1')
+  args.push('-i', musicPath)
+
   if (muteAsli) {
-    // Mute audio asli — hanya pakai musik, loop sampai video habis
-    await jalankan('ffmpeg', [
-      '-i', videoPath,
-      '-stream_loop', '-1',
-      '-i', musicPath,
-      '-map', '0:v',
-      '-map', '1:a',
-      '-c:v', 'copy',
-      '-c:a', 'aac',
-      '-shortest',
-      '-y', outputPath,
-    ])
+    // Opsi: hanya musik, tidak ada audio asli
+    let audioFilter = '[1:a]'
+
+    // Fade out musik (opsi B)
+    if (fadeOut) {
+      audioFilter = `[1:a]afade=t=out:st=${fadeStart.toFixed(2)}:d=3[aout]`
+      args.push('-filter_complex', audioFilter)
+      args.push('-map', '0:v', '-map', '[aout]')
+    } else {
+      args.push('-map', '0:v', '-map', '1:a')
+    }
   } else {
-    // Mix audio asli + musik (musik 30% volume)
-    await jalankan('ffmpeg', [
-      '-i', videoPath,
-      '-stream_loop', '-1',
-      '-i', musicPath,
-      '-filter_complex',
-      '[0:a][1:a]amix=inputs=2:duration=first:weights=1 0.3[aout]',
-      '-map', '0:v',
-      '-map', '[aout]',
-      '-c:v', 'copy',
-      '-c:a', 'aac',
-      '-shortest',
-      '-y', outputPath,
-    ])
+    // Mix audio asli + musik
+    let filterComplex: string
+
+    if (fadeOut) {
+      // Fade out hanya pada track musik, audio asli tetap normal
+      filterComplex =
+        `[1:a]afade=t=out:st=${fadeStart.toFixed(2)}:d=3[mfade];` +
+        `[0:a][mfade]amix=inputs=2:duration=first:weights=1 0.3[aout]`
+    } else {
+      filterComplex = '[0:a][1:a]amix=inputs=2:duration=first:weights=1 0.3[aout]'
+    }
+
+    args.push('-filter_complex', filterComplex)
+    args.push('-map', '0:v', '-map', '[aout]')
   }
+
+  args.push('-c:v', 'copy', '-c:a', 'aac', '-shortest', '-y', outputPath)
+
+  await jalankan('ffmpeg', args)
 }

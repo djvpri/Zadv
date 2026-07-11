@@ -48,6 +48,9 @@ export default function VideoPage() {
   const [musicTracks, setMusicTracks] = useState<MusicTrack[]>([])
   const [musicTrackId, setMusicTrackId] = useState<number | null>(null)
   const [muteAsli, setMuteAsli] = useState(false)
+  const [fadeOut, setFadeOut] = useState(true)
+  const [loopMusik, setLoopMusik] = useState(true)
+  const [mulaiDetik, setMulaiDetik] = useState(0)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -100,6 +103,9 @@ export default function VideoPage() {
       form.append('appId', String(appId))
       if (musicTrackId) form.append('musicTrackId', String(musicTrackId))
       if (muteAsli) form.append('muteAsli', '1')
+      if (fadeOut) form.append('fadeOut', '1')
+      if (!loopMusik) form.append('noLoop', '1')
+      if (mulaiDetik > 0) form.append('mulaiDetik', String(mulaiDetik))
       const res = await fetch('/api/video/upload', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Gagal upload')
@@ -181,15 +187,50 @@ export default function VideoPage() {
             </p>
           )}
           {musicTrackId && (
-            <label className="flex items-center gap-2 mt-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={muteAsli}
-                onChange={e => setMuteAsli(e.target.checked)}
-                className="accent-[#D8A23D]"
-              />
-              <span className="text-[11px] text-[#8A8378]">Mute audio asli video (hanya musik)</span>
-            </label>
+            <div className="mt-3 space-y-2 border border-white/10 rounded-xl p-3 bg-white/5">
+              <p className="text-[10px] text-[#8A8378] font-medium uppercase tracking-wide mb-2">Opsi Audio</p>
+
+              {/* Opsi A — potong otomatis (default, selalu aktif, info saja) */}
+              <p className="text-[10px] text-[#8A8378]">
+                ✂️ <span className="text-[#D4C5A9]">Potong otomatis</span> — musik berhenti saat video habis
+              </p>
+
+              {/* Opsi B — Fade out */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={fadeOut} onChange={e => setFadeOut(e.target.checked)} className="accent-[#D8A23D]" />
+                <span className="text-[11px] text-[#CFC9BE]">🎚 Fade out 3 detik di akhir</span>
+              </label>
+
+              {/* Opsi C — Loop */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={loopMusik} onChange={e => setLoopMusik(e.target.checked)} className="accent-[#D8A23D]" />
+                <span className="text-[11px] text-[#CFC9BE]">🔁 Loop musik jika lebih pendek dari video</span>
+              </label>
+
+              {/* Opsi D — Mulai dari detik */}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-[#CFC9BE] shrink-0">▶ Mulai dari detik</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={mulaiDetik}
+                  onChange={e => setMulaiDetik(Math.max(0, Number(e.target.value)))}
+                  className="w-20 bg-[#0F0E0C] border border-white/10 rounded-md px-2 py-1 text-[11px] text-center focus:outline-none focus:border-[#8B7355]"
+                />
+                {musicTracks.find(t => t.id === musicTrackId)?.durasi && (
+                  <span className="text-[10px] text-[#8A8378]">
+                    / {formatDurasi(musicTracks.find(t => t.id === musicTrackId)!.durasi)}
+                  </span>
+                )}
+              </div>
+
+              {/* Opsi mute */}
+              <label className="flex items-center gap-2 cursor-pointer pt-1 border-t border-white/5">
+                <input type="checkbox" checked={muteAsli} onChange={e => setMuteAsli(e.target.checked)} className="accent-[#D8A23D]" />
+                <span className="text-[11px] text-[#CFC9BE]">🔇 Mute audio asli (hanya musik)</span>
+              </label>
+            </div>
           )}
         </div>
 
