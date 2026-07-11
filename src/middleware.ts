@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const COOKIE_NAME = 'zpromo_session'
+const COOKIE_NAME = 'zadv_session'
 
 async function isValid(token: string | undefined): Promise<boolean> {
   if (!token) return false

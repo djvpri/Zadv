@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Meja Promosi — Zomet',
-  description: 'Pusat cetak konten promosi untuk ekosistem Zomet',
+  title: 'Z Adv — Zomet',
+  description: 'Generator konten promosi AI untuk ekosistem Zomet',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -150,7 +150,7 @@ export interface HasilProses {
 // lebih panjang dari target) -> bakar caption -> tulis ke outputPath.
 // Semua file sementara dibuang di akhir, sukses maupun gagal.
 export async function prosesVideo(inputPath: string, captionMentah: string, outputPath: string): Promise<HasilProses> {
-  const dirSementara = path.join(os.tmpdir(), `zpromo-video-${randomUUID()}`)
+  const dirSementara = path.join(os.tmpdir(), `zadv-video-${randomUUID()}`)
   await fs.mkdir(dirSementara, { recursive: true })
 
   try {

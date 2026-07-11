@@ -9,7 +9,7 @@ import { prosesVideo } from '@/lib/video-processing'
 export const runtime = 'nodejs'
 
 // Proses video di background — TIDAK di-await oleh caller (fire-and-forget).
-// Ini aman karena zpromo jalan sebagai server Node persisten di Railway
+// Ini aman karena zadv jalan sebagai server Node persisten di Railway
 // (bukan serverless/edge yang mematikan proses setelah response terkirim).
 async function prosesDiBackground(jobId: number, inputPath: string, caption: string, videoDir: string) {
   try {

@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { getJwtSecret } from './secrets'
 
-const COOKIE_NAME = 'zpromo_session'
+const COOKIE_NAME = 'zadv_session'
 const MAX_AGE_DETIK = 60 * 60 * 24 * 30 // 30 hari, samakan dengan konvensi ekosistem
 
 function secretBytes() {

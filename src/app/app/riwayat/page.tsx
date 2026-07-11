@@ -34,7 +34,7 @@ export default function RiwayatPage() {
   if (loading) return <p className="text-[#8A8378] text-sm">Memuat...</p>
 
   if (riwayat.length === 0) {
-    return <p className="text-[#8A8378] text-sm">Belum ada konten yang dibuat. Mulai dari Meja Cetak.</p>
+    return <p className="text-[#8A8378] text-sm">Belum ada konten yang dibuat. Mulai dari Z Adv.</p>
   }
 
   return (
