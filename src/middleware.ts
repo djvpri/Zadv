@@ -20,10 +20,12 @@ export async function middleware(req: NextRequest) {
   const token = req.cookies.get(COOKIE_NAME)?.value
   const valid = await isValid(token)
 
+  // Public endpoints
   const isApiAuth = pathname.startsWith('/api/auth/')
+  const isHealth = pathname === '/api/health'
   const isLoginPage = pathname === '/login'
 
-  if (isApiAuth || isLoginPage) return NextResponse.next()
+  if (isApiAuth || isHealth || isLoginPage) return NextResponse.next()
 
   if (pathname.startsWith('/api/')) {
     if (!valid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
