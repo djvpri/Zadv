@@ -142,34 +142,3 @@ function ekstrakAudio(inputPath: string, outputPath: string): Promise<void> {
   })
 }
 
-function getDurasi(filePath: string): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('ffprobe', [
-      '-v', 'error', '-show_entries', 'format=duration',
-      '-of', 'default=noprint_wrappers=1:nokey=1', filePath,
-    ])
-    let out = ''
-    proc.stdout.on('data', (d: Buffer) => { out += d.toString() })
-    proc.on('error', reject)
-    proc.on('close', (code: number) => {
-      const detik = parseFloat(out.trim())
-      if (code === 0 && !isNaN(detik)) resolve(detik)
-      else reject(new Error('Gagal membaca durasi'))
-    })
-  })
-}
-
-function ekstrakAudio(inputPath: string, outputPath: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('ffmpeg', [
-      '-i', inputPath, '-vn', '-acodec', 'mp3', '-ab', '192k', '-y', outputPath,
-    ])
-    let stderr = ''
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
-    proc.on('error', reject)
-    proc.on('close', (code: number) => {
-      if (code === 0) resolve()
-      else reject(new Error(`ffmpeg ekstrak audio gagal: ${stderr.slice(-300)}`))
-    })
-  })
-}
