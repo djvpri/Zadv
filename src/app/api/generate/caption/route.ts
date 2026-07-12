@@ -16,6 +16,26 @@ const TONE_LABEL: Record<string, string> = {
   urgent: 'Promo/FOMO',
 }
 
+
+// Hapus baris yang mengandung URL, domain, atau kata-kata yang mengarah ke link
+function filterBarisBerbahaya(script: string): string {
+  const pola = [
+    /https?:\/\//i,           // URL http/https
+    /www\./i,                  // www.
+    /\.(com|id|my\.id|io|co\.id|net|org)/i,  // domain extension
+    /klik link/i,
+    /kunjungi/i,
+    /cek di/i,
+    /download/i,
+    /install/i,
+  ]
+  return script
+    .split('\n')
+    .filter(baris => !pola.some(p => p.test(baris)))
+    .join('\n')
+    .trim()
+}
+
 async function callGemini(prompt: string): Promise<string> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${getGeminiKey()}`,
@@ -76,10 +96,12 @@ Aturan skrip:
 ${platform !== 'whatsapp' ? '- Akhiri dengan 5-8 hashtag relevan di baris baru' : '- Tanpa hashtag, lebih personal'}
 - HANYA tulis deskripsinya saja, tanpa judul atau penjelasan`
 
-      const [scriptRaw, deskripsiRaw] = await Promise.all([
+      const [scriptRawMentah, deskripsiRaw] = await Promise.all([
         callGemini(promptScript),
         callGemini(promptDeskripsi),
       ])
+
+      const scriptRaw = filterBarisBerbahaya(scriptRawMentah)
 
       // Parse deskripsi dan tags
       const lines = deskripsiRaw.split('\n')
