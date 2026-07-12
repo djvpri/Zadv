@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     }
 
     const audioStat = await fs.stat(audioPath)
-    const namaFinal = namaInput || `Track ${new Date().toLocaleDateString('id-ID')}`
+    const namaFinal = namaInput || path.basename(filename, path.extname(filename))
 
     const track = await prisma.musicTrack.create({
       data: { nama: namaFinal, durasi, path: audioPath, ukuran: audioStat.size },
