@@ -63,7 +63,10 @@ Aturan skrip:
 - Tiap baris = satu subtitle yang muncul ~3 detik di video
 - Mulai dengan hook yang menarik perhatian (masalah/pertanyaan)
 - Tengah: solusi dan fitur unggulan
-- Akhir: CTA singkat dan kuat (JANGAN tulis URL, link, atau "klik link di bawah" — cukup ajakan seperti "Daftar sekarang!" atau "Coba gratis hari ini!")
+- Akhir: CTA singkat dan kuat
+- DILARANG KERAS menulis URL, domain, link, atau alamat website apapun di dalam skrip
+- DILARANG menulis "klik link", "kunjungi", "cek di", atau kata yang mengarah ke URL
+- Baris terakhir harus berupa kalimat ajakan pendek, contoh: "Daftar sekarang!" atau "Yuk coba gratis!"
 - HANYA tulis baris-baris skrip saja, tanpa penomoran, tanpa judul, tanpa tanda kutip
 - Pisahkan tiap baris dengan newline`
 
