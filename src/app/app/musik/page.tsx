@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 interface MusicTrack {
   id: number
@@ -31,7 +31,11 @@ export default function HalamanMusik() {
   const [error, setError] = useState('')
   const [sukses, setSukses] = useState('')
   const [hapusId, setHapusId] = useState<number | null>(null)
+  const [renameId, setRenameId] = useState<number | null>(null)
+  const [renameVal, setRenameVal] = useState('')
+  const [renameSaving, setRenameSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const renameRef = useRef<HTMLInputElement>(null)
 
   const load = () => {
     setLoading(true)
@@ -81,6 +85,33 @@ export default function HalamanMusik() {
       load()
     } finally {
       setHapusId(null)
+    }
+  }
+
+  const mulaiRename = useCallback((track: MusicTrack) => {
+    setRenameId(track.id)
+    setRenameVal(track.nama)
+    setTimeout(() => renameRef.current?.select(), 0)
+  }, [])
+
+  const batalRename = useCallback(() => {
+    setRenameId(null)
+    setRenameVal('')
+  }, [])
+
+  const simpanRename = async (id: number) => {
+    if (!renameVal.trim()) return
+    setRenameSaving(true)
+    try {
+      await fetch(`/api/music/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nama: renameVal.trim() }),
+      })
+      setRenameId(null)
+      load()
+    } finally {
+      setRenameSaving(false)
     }
   }
 
@@ -145,23 +176,62 @@ export default function HalamanMusik() {
       ) : (
         <div className="space-y-2">
           {tracks.map(t => (
-            <div key={t.id} className="flex items-center justify-between bg-[#1A1814] border border-[#2A2520] rounded-xl px-4 py-3">
-              <div className="flex items-center gap-3">
-                <span className="text-xl">🎵</span>
-                <div>
-                  <p className="text-sm font-medium">{t.nama}</p>
-                  <p className="text-xs text-[#8A8378]">
-                    {formatDurasi(t.durasi)} · {formatUkuran(t.ukuran)}
-                  </p>
+            <div key={t.id} className="bg-[#1A1814] border border-[#2A2520] rounded-xl px-4 py-3">
+              {renameId === t.id ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xl shrink-0">🎵</span>
+                  <input
+                    ref={renameRef}
+                    value={renameVal}
+                    onChange={e => setRenameVal(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') simpanRename(t.id)
+                      if (e.key === 'Escape') batalRename()
+                    }}
+                    className="flex-1 bg-[#0F0E0C] border border-[#8B7355] rounded-lg px-2 py-1 text-sm focus:outline-none"
+                  />
+                  <button
+                    onClick={() => simpanRename(t.id)}
+                    disabled={renameSaving || !renameVal.trim()}
+                    className="text-xs text-[#D8A23D] hover:text-[#E3B458] disabled:opacity-40 px-2 py-1 font-medium"
+                  >
+                    {renameSaving ? '...' : 'Simpan'}
+                  </button>
+                  <button
+                    onClick={batalRename}
+                    className="text-xs text-[#8A8378] hover:text-[#B3ACA1] px-2 py-1"
+                  >
+                    Batal
+                  </button>
                 </div>
-              </div>
-              <button
-                onClick={() => handleHapus(t.id)}
-                disabled={hapusId === t.id}
-                className="text-xs text-red-400 hover:text-red-300 disabled:opacity-40 px-2 py-1"
-              >
-                {hapusId === t.id ? '...' : 'Hapus'}
-              </button>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-xl shrink-0">🎵</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{t.nama}</p>
+                      <p className="text-xs text-[#8A8378]">
+                        {formatDurasi(t.durasi)} · {formatUkuran(t.ukuran)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <button
+                      onClick={() => mulaiRename(t)}
+                      className="text-xs text-[#8A8378] hover:text-[#D4C5A9] px-2 py-1"
+                    >
+                      Ganti Nama
+                    </button>
+                    <button
+                      onClick={() => handleHapus(t.id)}
+                      disabled={hapusId === t.id}
+                      className="text-xs text-red-400 hover:text-red-300 disabled:opacity-40 px-2 py-1"
+                    >
+                      {hapusId === t.id ? '...' : 'Hapus'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
