@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
 import Busboy from 'busboy'
 import { Readable } from 'stream'
+import { jwtVerify } from 'jose'
 import prisma from '@/lib/db'
 import {
   pastikanMusicDir,
@@ -15,8 +16,23 @@ import {
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// Auth manual — route ini di-skip middleware agar upload file besar tidak
+// melewati Edge runtime yang punya batas body kecil.
+async function cekAuth(req: NextRequest): Promise<boolean> {
+  const token = req.cookies.get('zadv_session')?.value
+  const secret = process.env.JWT_SECRET
+  if (!token || !secret) return false
+  try {
+    await jwtVerify(token, new TextEncoder().encode(secret))
+    return true
+  } catch {
+    return false
+  }
+}
+
 // GET — list semua musik
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!await cekAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const tracks = await prisma.musicTrack.findMany({
     orderBy: { createdAt: 'desc' },
   })
@@ -25,6 +41,7 @@ export async function GET() {
 
 // POST — upload musik via busboy stream (bypass 10MB limit)
 export async function POST(req: NextRequest) {
+  if (!await cekAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     const contentType = req.headers.get('content-type') || ''
     if (!contentType.includes('multipart/form-data')) {
