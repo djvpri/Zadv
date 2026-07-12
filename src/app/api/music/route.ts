@@ -10,6 +10,10 @@ import {
 } from '@/lib/music-storage'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+// Naikkan limit body size untuk upload file besar (audio/video)
+export const fetchCache = 'force-no-store'
 
 // GET — list semua musik
 export async function GET() {
