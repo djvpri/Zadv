@@ -16,26 +16,6 @@ const TONE_LABEL: Record<string, string> = {
   urgent: 'Promo/FOMO',
 }
 
-
-// Hapus baris yang mengandung URL, domain, atau kata-kata yang mengarah ke link
-function filterBarisBerbahaya(script: string): string {
-  const pola = [
-    /https?:\/\//i,           // URL http/https
-    /www\./i,                  // www.
-    /\.(com|id|my\.id|io|co\.id|net|org)/i,  // domain extension
-    /klik link/i,
-    /kunjungi/i,
-    /cek di/i,
-    /download/i,
-    /install/i,
-  ]
-  return script
-    .split('\n')
-    .filter(baris => !pola.some(p => p.test(baris)))
-    .join('\n')
-    .trim()
-}
-
 async function callGemini(prompt: string): Promise<string> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${getGeminiKey()}`,
@@ -83,10 +63,8 @@ Aturan skrip:
 - Tiap baris = satu subtitle yang muncul ~3 detik di video
 - Mulai dengan hook yang menarik perhatian (masalah/pertanyaan)
 - Tengah: solusi dan fitur unggulan
-- Akhir: CTA singkat dan kuat
-- DILARANG KERAS menulis URL, domain, link, atau alamat website apapun di dalam skrip
-- DILARANG menulis "klik link", "kunjungi", "cek di", atau kata yang mengarah ke URL
-- Baris terakhir harus berupa kalimat ajakan pendek, contoh: "Daftar sekarang!" atau "Yuk coba gratis!"
+- Akhir: CTA singkat dan kuat, contoh: "Daftar sekarang!" atau "Yuk coba gratis!"
+- JANGAN tulis URL di dalam skrip, URL akan ditambahkan otomatis di baris terakhir
 - HANYA tulis baris-baris skrip saja, tanpa penomoran, tanpa judul, tanpa tanda kutip
 - Pisahkan tiap baris dengan newline`
 
@@ -96,12 +74,10 @@ Aturan skrip:
 ${platform !== 'whatsapp' ? '- Akhiri dengan 5-8 hashtag relevan di baris baru' : '- Tanpa hashtag, lebih personal'}
 - HANYA tulis deskripsinya saja, tanpa judul atau penjelasan`
 
-      const [scriptRawMentah, deskripsiRaw] = await Promise.all([
+      const [scriptRaw, deskripsiRaw] = await Promise.all([
         callGemini(promptScript),
         callGemini(promptDeskripsi),
       ])
-
-      const scriptRaw = filterBarisBerbahaya(scriptRawMentah)
 
       // Parse deskripsi dan tags
       const lines = deskripsiRaw.split('\n')
@@ -112,10 +88,12 @@ ${platform !== 'whatsapp' ? '- Akhiri dengan 5-8 hashtag relevan di baris baru' 
         : []
 
       await prisma.kontenPromo.create({
-        data: { appId: app.id, tipe: 'video_script', platform, tone, teks: scriptRaw },
+        data: { appId: app.id, tipe: 'video_script', platform, tone, teks: scriptFinal },
       })
 
-      return NextResponse.json({ script: scriptRaw, deskripsi, tags })
+      // Pastikan baris terakhir adalah URL app yang benar
+      const scriptFinal = scriptRaw.trim() + (app.url ? '\n' + app.url : '')
+      return NextResponse.json({ script: scriptFinal, deskripsi, tags })
     }
 
     // Format caption biasa
