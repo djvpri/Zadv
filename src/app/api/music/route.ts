@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { promises as fs } from 'fs'
+import { createWriteStream } from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
+import Busboy from 'busboy'
+import { Readable } from 'stream'
 import prisma from '@/lib/db'
 import {
-  getMusicDir, pastikanMusicDir,
+  pastikanMusicDir,
   MAX_MUSIC_BYTES, TIPE_MUSIK_DIIZINKAN, isVideoFile,
 } from '@/lib/music-storage'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-// Naikkan limit body size untuk upload file besar (audio/video)
-export const fetchCache = 'force-no-store'
 
 // GET — list semua musik
 export async function GET() {
@@ -23,33 +23,69 @@ export async function GET() {
   return NextResponse.json(tracks)
 }
 
-// POST — upload musik baru
+// POST — upload musik via busboy stream (bypass 10MB limit)
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData()
-    const file = formData.get('file') as File | null
-    const nama = (formData.get('nama') as string) || ''
-
-    if (!file) return NextResponse.json({ error: 'File wajib diupload' }, { status: 400 })
-    if (!TIPE_MUSIK_DIIZINKAN.includes(file.type)) {
-      return NextResponse.json({ error: 'Format tidak didukung. Gunakan MP3, WAV, AAC, M4A, atau video MP4/MOV/WEBM.' }, { status: 400 })
-    }
-    if (file.size > MAX_MUSIC_BYTES) {
-      return NextResponse.json({ error: 'File terlalu besar, maksimal 50MB' }, { status: 400 })
+    const contentType = req.headers.get('content-type') || ''
+    if (!contentType.includes('multipart/form-data')) {
+      return NextResponse.json({ error: 'Content-type harus multipart/form-data' }, { status: 400 })
     }
 
     const dir = await pastikanMusicDir()
     const id = randomUUID()
-    const ext = isVideoFile(file.type) ? path.extname(file.name) || '.mp4' : path.extname(file.name) || '.mp3'
-    const inputPath = path.join(dir, `${id}-input${ext}`)
+
+    // Parse multipart via busboy stream
+    const result = await new Promise<{ filePath: string; nama: string; mimeType: string; size: number }>((resolve, reject) => {
+      const bb = Busboy({
+        headers: { 'content-type': contentType },
+        limits: { fileSize: MAX_MUSIC_BYTES },
+      })
+
+      let nama = ''
+      let filePath = ''
+      let mimeType = ''
+      let size = 0
+      let fileSaved = false
+
+      bb.on('field', (name, val) => {
+        if (name === 'nama') nama = val
+      })
+
+      bb.on('file', (fieldname, fileStream, info) => {
+        mimeType = info.mimeType
+        const ext = path.extname(info.filename) || (isVideoFile(mimeType) ? '.mp4' : '.mp3')
+        filePath = path.join(dir, `${id}-input${ext}`)
+        const writeStream = createWriteStream(filePath)
+
+        fileStream.on('data', (chunk: Buffer) => { size += chunk.length })
+        fileStream.on('limit', () => reject(new Error('File terlalu besar, maksimal 50MB')))
+        fileStream.pipe(writeStream)
+        writeStream.on('finish', () => { fileSaved = true })
+        writeStream.on('error', reject)
+      })
+
+      bb.on('finish', () => {
+        if (!fileSaved) reject(new Error('Tidak ada file yang diupload'))
+        else resolve({ filePath, nama, mimeType, size })
+      })
+      bb.on('error', reject)
+
+      // Pipe request body ke busboy
+      const nodeReq = Readable.fromWeb(req.body as any)
+      nodeReq.pipe(bb)
+    })
+
+    const { filePath: inputPath, nama: namaInput, mimeType, size } = result
+
+    if (!TIPE_MUSIK_DIIZINKAN.includes(mimeType)) {
+      await fs.unlink(inputPath).catch(() => {})
+      return NextResponse.json({ error: 'Format tidak didukung. Gunakan MP3, WAV, AAC, M4A, atau video MP4/MOV.' }, { status: 400 })
+    }
+
     const audioPath = path.join(dir, `${id}.mp3`)
-
-    const buf = Buffer.from(await file.arrayBuffer())
-    await fs.writeFile(inputPath, buf)
-
     const durasi = await getDurasi(inputPath).catch(() => null)
 
-    if (isVideoFile(file.type)) {
+    if (isVideoFile(mimeType)) {
       await ekstrakAudio(inputPath, audioPath)
       await fs.unlink(inputPath).catch(() => {})
     } else {
@@ -57,15 +93,10 @@ export async function POST(req: NextRequest) {
     }
 
     const stat = await fs.stat(audioPath)
-    const namaFinal = nama || file.name.replace(/\.[^.]+$/, '')
+    const namaFinal = namaInput || `Track ${new Date().toLocaleDateString('id-ID')}`
 
     const track = await prisma.musicTrack.create({
-      data: {
-        nama: namaFinal,
-        durasi,
-        path: audioPath,
-        ukuran: stat.size,
-      },
+      data: { nama: namaFinal, durasi, path: audioPath, ukuran: stat.size },
     })
 
     return NextResponse.json(track)
@@ -107,6 +138,38 @@ function ekstrakAudio(inputPath: string, outputPath: string): Promise<void> {
     proc.on('close', (code) => {
       if (code === 0) resolve()
       else reject(new Error(`ffmpeg ekstrak audio gagal: ${stderr.slice(-500)}`))
+    })
+  })
+}
+
+function getDurasi(filePath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('ffprobe', [
+      '-v', 'error', '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1', filePath,
+    ])
+    let out = ''
+    proc.stdout.on('data', (d: Buffer) => { out += d.toString() })
+    proc.on('error', reject)
+    proc.on('close', (code: number) => {
+      const detik = parseFloat(out.trim())
+      if (code === 0 && !isNaN(detik)) resolve(detik)
+      else reject(new Error('Gagal membaca durasi'))
+    })
+  })
+}
+
+function ekstrakAudio(inputPath: string, outputPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('ffmpeg', [
+      '-i', inputPath, '-vn', '-acodec', 'mp3', '-ab', '192k', '-y', outputPath,
+    ])
+    let stderr = ''
+    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+    proc.on('error', reject)
+    proc.on('close', (code: number) => {
+      if (code === 0) resolve()
+      else reject(new Error(`ffmpeg ekstrak audio gagal: ${stderr.slice(-300)}`))
     })
   })
 }

@@ -5,8 +5,7 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '60mb',
     },
+    proxyClientMaxBodySize: '60mb',
   },
-  // Naikkan batas body untuk upload file audio/video besar
-  middlewareClientMaxBodySize: 60 * 1024 * 1024, // 60MB
 }
 export default nextConfig
