@@ -49,12 +49,17 @@ export default function HalamanMusik() {
     setError('')
     setSukses('')
 
-    const form = new FormData()
-    form.append('file', file)
-    if (nama.trim()) form.append('nama', nama.trim())
+    // Kirim file sebagai raw binary body (bukan multipart) agar tidak kena batas
+    // parsing Next.js. Metadata dikirim via query params.
+    const params = new URLSearchParams({ type: file.type, filename: file.name })
+    if (nama.trim()) params.set('nama', nama.trim())
 
     try {
-      const res = await fetch('/api/music', { method: 'POST', body: form })
+      const res = await fetch(`/api/music?${params}`, {
+        method: 'POST',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload gagal')
       setSukses(`"${data.nama}" berhasil diupload!`)

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { promises as fs } from 'fs'
 import { createWriteStream } from 'fs'
+import { pipeline } from 'stream/promises'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { spawn } from 'child_process'
-import Busboy from 'busboy'
 import { Readable } from 'stream'
 import { jwtVerify } from 'jose'
 import prisma from '@/lib/db'
@@ -39,68 +39,47 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(tracks)
 }
 
-// POST — upload musik via busboy stream (bypass 10MB limit)
+// POST — upload musik sebagai raw binary body (bypass multipart parsing limit)
+// Metadata dikirim via query params: ?nama=...&type=audio/mpeg&filename=...
 export async function POST(req: NextRequest) {
   if (!await cekAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
-    const contentType = req.headers.get('content-type') || ''
-    if (!contentType.includes('multipart/form-data')) {
-      return NextResponse.json({ error: 'Content-type harus multipart/form-data' }, { status: 400 })
+    if (!req.body) return NextResponse.json({ error: 'Body kosong' }, { status: 400 })
+
+    const params = req.nextUrl.searchParams
+    const namaInput = params.get('nama') || ''
+    const mimeType = params.get('type') || 'audio/mpeg'
+    const filename = params.get('filename') || 'track'
+
+    if (!TIPE_MUSIK_DIIZINKAN.includes(mimeType)) {
+      return NextResponse.json(
+        { error: 'Format tidak didukung. Gunakan MP3, WAV, AAC, M4A, atau video MP4/MOV.' },
+        { status: 400 }
+      )
     }
 
     const dir = await pastikanMusicDir()
     const id = randomUUID()
+    const ext = path.extname(filename) || (isVideoFile(mimeType) ? '.mp4' : '.mp3')
+    const inputPath = path.join(dir, `${id}-input${ext}`)
 
-    // Parse multipart via busboy stream
-    const result = await new Promise<{ filePath: string; nama: string; mimeType: string; size: number }>((resolve, reject) => {
-      const bb = Busboy({
-        headers: { 'content-type': contentType },
-        limits: { fileSize: MAX_MUSIC_BYTES },
-      })
+    // Stream body langsung ke disk — tidak ada buffering di memori
+    const nodeReq = Readable.fromWeb(req.body as any)
+    await pipeline(nodeReq, createWriteStream(inputPath))
 
-      let nama = ''
-      let filePath = ''
-      let mimeType = ''
-      let size = 0
-      let fileSaved = false
-
-      bb.on('field', (name, val) => {
-        if (name === 'nama') nama = val
-      })
-
-      bb.on('file', (fieldname, fileStream, info) => {
-        mimeType = info.mimeType
-        const ext = path.extname(info.filename) || (isVideoFile(mimeType) ? '.mp4' : '.mp3')
-        filePath = path.join(dir, `${id}-input${ext}`)
-        const writeStream = createWriteStream(filePath)
-
-        fileStream.on('data', (chunk: Buffer) => { size += chunk.length })
-        fileStream.on('limit', () => reject(new Error('File terlalu besar, maksimal 50MB')))
-        fileStream.pipe(writeStream)
-        writeStream.on('finish', () => { fileSaved = true })
-        writeStream.on('error', reject)
-      })
-
-      bb.on('finish', () => {
-        if (!fileSaved) reject(new Error('Tidak ada file yang diupload'))
-        else resolve({ filePath, nama, mimeType, size })
-      })
-      bb.on('error', reject)
-
-      // Pipe request body ke busboy
-      const nodeReq = Readable.fromWeb(req.body as any)
-      nodeReq.pipe(bb)
-    })
-
-    const { filePath: inputPath, nama: namaInput, mimeType, size } = result
-
-    if (!TIPE_MUSIK_DIIZINKAN.includes(mimeType)) {
+    // Cek ukuran setelah simpan
+    const inputStat = await fs.stat(inputPath)
+    if (inputStat.size > MAX_MUSIC_BYTES) {
       await fs.unlink(inputPath).catch(() => {})
-      return NextResponse.json({ error: 'Format tidak didukung. Gunakan MP3, WAV, AAC, M4A, atau video MP4/MOV.' }, { status: 400 })
+      return NextResponse.json({ error: 'File terlalu besar, maksimal 50MB' }, { status: 400 })
+    }
+    if (inputStat.size === 0) {
+      await fs.unlink(inputPath).catch(() => {})
+      return NextResponse.json({ error: 'File kosong' }, { status: 400 })
     }
 
-    const audioPath = path.join(dir, `${id}.mp3`)
     const durasi = await getDurasi(inputPath).catch(() => null)
+    const audioPath = path.join(dir, `${id}.mp3`)
 
     if (isVideoFile(mimeType)) {
       await ekstrakAudio(inputPath, audioPath)
@@ -109,11 +88,11 @@ export async function POST(req: NextRequest) {
       await fs.rename(inputPath, audioPath)
     }
 
-    const stat = await fs.stat(audioPath)
+    const audioStat = await fs.stat(audioPath)
     const namaFinal = namaInput || `Track ${new Date().toLocaleDateString('id-ID')}`
 
     const track = await prisma.musicTrack.create({
-      data: { nama: namaFinal, durasi, path: audioPath, ukuran: stat.size },
+      data: { nama: namaFinal, durasi, path: audioPath, ukuran: audioStat.size },
     })
 
     return NextResponse.json(track)
@@ -144,7 +123,7 @@ function ekstrakAudio(inputPath: string, outputPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', [
       '-i', inputPath,
-      '-vn',              // hapus video stream
+      '-vn',
       '-acodec', 'mp3',
       '-ab', '192k',
       '-y', outputPath,
@@ -158,4 +137,3 @@ function ekstrakAudio(inputPath: string, outputPath: string): Promise<void> {
     })
   })
 }
-
