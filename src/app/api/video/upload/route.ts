@@ -42,7 +42,7 @@ async function prosesDiBackground(
 export async function POST(req: Request) {
   const form = await req.formData()
   const file = form.get('file')
-  const caption = form.get('caption')
+  const caption = (form.get('script') || form.get('caption')) as string | null
   const appIdRaw = form.get('appId')
   const musicTrackIdRaw = form.get('musicTrackId')
   const muteAsliRaw = form.get('muteAsli')
