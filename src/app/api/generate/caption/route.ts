@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { getGeminiKey } from '@/lib/secrets'
 
-const GEMINI_MODEL = 'gemini-1.5-flash'
+const GEMINI_MODEL = 'gemini-2.0-flash'
 
 const PLATFORM_LABEL: Record<string, string> = {
   instagram: 'Instagram',
