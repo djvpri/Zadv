@@ -87,12 +87,13 @@ ${platform !== 'whatsapp' ? '- Akhiri dengan 5-8 hashtag relevan di baris baru' 
         ? hashtagLine.match(/#\w+/g) || []
         : []
 
+      // Pastikan baris terakhir adalah URL app yang benar
+      const scriptFinal = scriptRaw.trim() + (app.url ? '\n' + app.url : '')
+
       await prisma.kontenPromo.create({
         data: { appId: app.id, tipe: 'video_script', platform, tone, teks: scriptFinal },
       })
 
-      // Pastikan baris terakhir adalah URL app yang benar
-      const scriptFinal = scriptRaw.trim() + (app.url ? '\n' + app.url : '')
       return NextResponse.json({ script: scriptFinal, deskripsi, tags })
     }
 
