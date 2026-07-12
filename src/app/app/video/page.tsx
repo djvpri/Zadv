@@ -378,7 +378,19 @@ export default function VideoPage() {
                   className="w-20 bg-[#0F0E0C] border border-white/10 rounded-md px-2 py-1 text-[11px] text-center focus:outline-none focus:border-[#8B7355]"
                 />
                 {musicTracks.find(t => t.id === musicTrackId)?.durasi && (
-                  <span className="text-[10px] text-[#8A8378]">/ {formatDurasi(musicTracks.find(t => t.id === musicTrackId)!.durasi)}</span>
+                  <>
+                    <span className="text-[10px] text-[#8A8378]">/ {formatDurasi(musicTracks.find(t => t.id === musicTrackId)!.durasi)}</span>
+                    <button
+                      onClick={() => {
+                        const track = musicTracks.find(t => t.id === musicTrackId)
+                        const durasi = track?.durasi ?? 0
+                        const max = Math.max(0, Math.floor(durasi - 30))
+                        setMulaiDetik(Math.floor(Math.random() * max))
+                      }}
+                      title="Mulai dari posisi acak"
+                      className="text-[13px] px-2 py-0.5 rounded border border-white/10 hover:border-[#D8A23D] hover:bg-[#D8A23D]/10 transition-colors"
+                    >🎲</button>
+                  </>
                 )}
               </div>
               <label className="flex items-center gap-2 cursor-pointer pt-1 border-t border-white/5">
