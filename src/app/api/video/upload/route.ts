@@ -20,12 +20,16 @@ async function prosesDiBackground(
   muteAsli?: boolean,
   fadeOut?: boolean,
   loopMusik?: boolean,
-  mulaiDetik?: number
+  mulaiDetik?: number,
+  styleUkuran?: string,
+  stylePosisi?: string,
+  styleLatar?: string,
+  styleWarna?: string
 ) {
   try {
     await prisma.videoJob.update({ where: { id: jobId }, data: { status: 'processing' } })
     const outputPath = path.join(videoDir, `output-${jobId}.mp4`)
-    const hasil = await prosesVideo(inputPath, caption, outputPath, musicPath, muteAsli, fadeOut, loopMusik, mulaiDetik)
+    const hasil = await prosesVideo(inputPath, caption, outputPath, musicPath, muteAsli, fadeOut, loopMusik, mulaiDetik, styleUkuran, stylePosisi, styleLatar, styleWarna)
     await prisma.videoJob.update({
       where: { id: jobId },
       data: { status: 'done', outputPath, durasiAsli: hasil.durasiAsli },
@@ -49,6 +53,10 @@ export async function POST(req: Request) {
   const fadeOutRaw = form.get('fadeOut')
   const noLoopRaw = form.get('noLoop')
   const mulaiDetikRaw = form.get('mulaiDetik')
+  const styleUkuran = (form.get('style_ukuran') as string) || 'sedang'
+  const stylePosisi = (form.get('style_posisi') as string) || 'bawah'
+  const styleLatar = (form.get('style_latar') as string) || 'samar'
+  const styleWarna = (form.get('style_warna') as string) || 'putih'
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'File video wajib diisi' }, { status: 400 })
@@ -90,7 +98,7 @@ export async function POST(req: Request) {
   })
 
   // Sengaja tidak di-await — client polling status lewat endpoint terpisah.
-  prosesDiBackground(job.id, inputPath, caption, videoDir, musicPath, muteAsliRaw === "1", fadeOutRaw === "1", noLoopRaw !== "1", mulaiDetikRaw ? Number(mulaiDetikRaw) : 0).catch((e) => {
+  prosesDiBackground(job.id, inputPath, caption, videoDir, musicPath, muteAsliRaw === "1", fadeOutRaw === "1", noLoopRaw !== "1", mulaiDetikRaw ? Number(mulaiDetikRaw) : 0, styleUkuran, stylePosisi, styleLatar, styleWarna).catch((e) => {
     console.error('prosesDiBackground gagal tak terduga:', e)
   })
 

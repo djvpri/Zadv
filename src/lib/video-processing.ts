@@ -120,25 +120,116 @@ async function gabungSegmen(inputs: string[], output: string, dirSementara: stri
   await jalankan('ffmpeg', ['-y', '-f', 'concat', '-safe', '0', '-i', daftarPath, '-c', 'copy', output])
 }
 
-async function bakarCaption(input: string, captionMentah: string, output: string, dirSementara: string): Promise<void> {
-  const bersih = sanitasiCaption(captionMentah)
-  const dibungkus = bungkusBaris(bersih)
-  const captionPath = path.join(dirSementara, 'caption.txt')
-  await fs.writeFile(captionPath, dibungkus, 'utf8')
+function generateSRT(
+  script: string,
+  detikPerBaris: number,
+  styleUkuran: string,
+  stylePosisi: string,
+  styleLatar: string,
+  styleWarna: string
+): string {
+  const baris = script.split('\n').map(b => b.trim()).filter(Boolean)
+  const entries: string[] = []
 
-  const filter = [
-    `drawtext=textfile=${captionPath}`,
-    `fontcolor=white`,
-    `fontsize=${FONTSIZE_EXPR}`,
-    `box=1`,
-    `boxcolor=black@0.55`,
-    `boxborderw=14`,
-    `x=(w-text_w)/2`,
-    `y=h-th-60`,
-    `line_spacing=8`,
-  ].join(':')
+  for (let i = 0; i < baris.length; i++) {
+    const mulai = i * detikPerBaris
+    const akhir = mulai + detikPerBaris
 
-  await jalankan('ffmpeg', ['-y', '-i', input, '-vf', filter, '-c:v', 'libx264', '-preset', 'veryfast', '-c:a', 'copy', output])
+    const toSRTTime = (detik: number) => {
+      const h = Math.floor(detik / 3600)
+      const m = Math.floor((detik % 3600) / 60)
+      const s = Math.floor(detik % 60)
+      const ms = Math.round((detik % 1) * 1000)
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`
+    }
+
+    entries.push(
+      `${i + 1}\n${toSRTTime(mulai)} --> ${toSRTTime(akhir)}\n${baris[i]}\n`
+    )
+  }
+
+  return entries.join('\n')
+}
+
+async function bakarCaption(
+  input: string,
+  captionMentah: string,
+  output: string,
+  dirSementara: string,
+  styleUkuran = 'sedang',
+  stylePosisi = 'bawah',
+  styleLatar = 'samar',
+  styleWarna = 'putih'
+): Promise<void> {
+  // Deteksi apakah captionMentah adalah multi-baris script atau caption tunggal
+  const baris = captionMentah.split('\n').map(b => b.trim()).filter(Boolean)
+  const isMultiBaris = baris.length > 1
+
+  const durasiVideo = await getDurasi(input)
+  const DETIK_PER_BARIS = 3
+
+  if (isMultiBaris) {
+    // Mode subtitle: tiap baris = satu subtitle ~3 detik
+    const srt = generateSRT(captionMentah, DETIK_PER_BARIS, styleUkuran, stylePosisi, styleLatar, styleWarna)
+    const srtPath = path.join(dirSementara, 'subtitle.srt')
+    await fs.writeFile(srtPath, srt, 'utf8')
+
+    // Ukuran font
+    const fontSize = styleUkuran === 'kecil' ? 18 : styleUkuran === 'besar' ? 30 : 24
+
+    // Posisi vertikal (MarginV)
+    const marginV = stylePosisi === 'atas' ? 30 : stylePosisi === 'tengah' ? 0 : 30
+
+    // Alignment: atas=8, tengah=5, bawah=2
+    const alignment = stylePosisi === 'atas' ? 8 : stylePosisi === 'tengah' ? 5 : 2
+
+    // Warna (ASS format: &HAABBGGRR)
+    const primaryColor = styleWarna === 'emas' ? '&H0000D4D8&' : '&H00FFFFFF&'
+
+    // Latar belakang
+    const backColor = styleLatar === 'solid' ? '&H99000000&' : styleLatar === 'samar' ? '&H66000000&' : '&H00000000&'
+    const borderStyle = styleLatar === 'transparan' ? 1 : 3
+
+    // Force styles via ASS override menggunakan subtitles filter dengan force_style
+    const forceStyle = [
+      `Fontsize=${fontSize}`,
+      `PrimaryColour=${primaryColor}`,
+      `BackColour=${backColor}`,
+      `BorderStyle=${borderStyle}`,
+      `Alignment=${alignment}`,
+      `MarginV=${marginV}`,
+      `Bold=1`,
+      `Shadow=0`,
+      `Outline=1`,
+      `OutlineColour=&H99000000&`,
+    ].join(',')
+
+    await jalankan('ffmpeg', [
+      '-y', '-i', input,
+      '-vf', `subtitles=${srtPath}:force_style='${forceStyle}'`,
+      '-c:v', 'libx264', '-preset', 'veryfast',
+      '-c:a', 'copy', output,
+    ])
+  } else {
+    // Mode caption tunggal: teks statis sepanjang video (behavior lama)
+    const bersih = captionMentah.replace(/%/g, ' persen').replace(/\s+/g, ' ').trim()
+    const captionPath = path.join(dirSementara, 'caption.txt')
+    await fs.writeFile(captionPath, bersih, 'utf8')
+
+    const filter = [
+      `drawtext=textfile=${captionPath}`,
+      `fontcolor=white`,
+      `fontsize=${FONTSIZE_EXPR}`,
+      `box=1`,
+      `boxcolor=black@0.55`,
+      `boxborderw=14`,
+      `x=(w-text_w)/2`,
+      `y=h-th-60`,
+      `line_spacing=8`,
+    ].join(':')
+
+    await jalankan('ffmpeg', ['-y', '-i', input, '-vf', filter, '-c:v', 'libx264', '-preset', 'veryfast', '-c:a', 'copy', output])
+  }
 }
 
 export interface HasilProses {
@@ -157,7 +248,11 @@ export async function prosesVideo(
   muteAsli?: boolean,
   fadeOut?: boolean,
   loopMusik?: boolean,
-  mulaiDetik?: number
+  mulaiDetik?: number,
+  styleUkuran = 'sedang',
+  stylePosisi = 'bawah',
+  styleLatar = 'samar',
+  styleWarna = 'putih'
 ): Promise<HasilProses> {
   const dirSementara = path.join(os.tmpdir(), `zadv-video-${randomUUID()}`)
   await fs.mkdir(dirSementara, { recursive: true })
@@ -188,14 +283,14 @@ export async function prosesVideo(
       const musikAda = await fs.access(musicPath).then(() => true).catch(() => false)
       if (!musikAda) {
         console.warn(`[video] File musik tidak ditemukan: ${musicPath}, lanjut tanpa musik`)
-        await bakarCaption(sumberUntukCaption, captionMentah, outputPath, dirSementara)
+        await bakarCaption(sumberUntukCaption, captionMentah, outputPath, dirSementara, styleUkuran, stylePosisi, styleLatar, styleWarna)
       } else {
         const tempOutput = path.join(dirSementara, 'dengan_caption.mp4')
-        await bakarCaption(sumberUntukCaption, captionMentah, tempOutput, dirSementara)
+        await bakarCaption(sumberUntukCaption, captionMentah, tempOutput, dirSementara, styleUkuran, stylePosisi, styleLatar, styleWarna)
         await mixBacksound(tempOutput, musicPath, outputPath, { muteAsli, fadeOut, loopMusik, mulaiDetik })
       }
     } else {
-      await bakarCaption(sumberUntukCaption, captionMentah, outputPath, dirSementara)
+      await bakarCaption(sumberUntukCaption, captionMentah, outputPath, dirSementara, styleUkuran, stylePosisi, styleLatar, styleWarna)
     }
 
     const durasiOutput = await getDurasi(outputPath)
