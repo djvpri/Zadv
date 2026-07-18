@@ -20,3 +20,7 @@ export function getAdminPassword(): string {
 export function getGeminiKey(): string {
   return required('GEMINI_API_KEY')
 }
+
+export function getGithubToken(): string {
+  return required('GITHUB_TOKEN')
+}
