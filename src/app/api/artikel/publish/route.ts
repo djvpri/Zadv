@@ -27,7 +27,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Data artikel tidak lengkap' }, { status: 400 })
   }
 
-  const token = getGithubToken()
+  let token: string
+  try {
+    token = getGithubToken()
+  } catch {
+    return NextResponse.json({ error: 'GITHUB_TOKEN belum di-set di Railway environment variables.' }, { status: 503 })
+  }
+
+  try {
   const today = new Date().toISOString().slice(0, 10)
   const filePath = `content/artikel/${slug}.md`
   const fileUrl = `${BASE_URL}/${filePath}`
@@ -81,9 +88,13 @@ export async function POST(req: Request) {
     }).catch(() => {})
   }
 
-  return NextResponse.json({
-    ok: true,
-    slug,
-    url: `https://www.zomet.my.id/artikel/${slug}`,
-  })
+    return NextResponse.json({
+      ok: true,
+      slug,
+      url: `https://www.zomet.my.id/artikel/${slug}`,
+    })
+  } catch (e: any) {
+    console.error('Publish artikel error:', e)
+    return NextResponse.json({ error: e.message || 'Terjadi kesalahan saat publish' }, { status: 500 })
+  }
 }
