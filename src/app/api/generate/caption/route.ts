@@ -69,9 +69,17 @@ Aturan skrip:
 - Pisahkan tiap baris dengan newline`
 
       const promptDeskripsi = `Buatkan deskripsi postingan ${platformLabel} untuk video promosi ${app.nama} (${app.tagline}), nada ${toneLabel}, Bahasa Indonesia.
+
+Konteks produk:
+- Ini adalah aplikasi/software bisnis, BUKAN layanan untuk konsumen akhir
+- Target pembaca: pemilik usaha atau pengelola bisnis yang butuh solusi ini
+- Fitur: ${app.fitur.join(', ')}
+
+Aturan:
 - Panjang 2-3 kalimat
-- Sertakan CTA
-${platform !== 'whatsapp' ? '- Akhiri dengan 5-8 hashtag relevan di baris baru' : '- Tanpa hashtag, lebih personal'}
+- Fokus pada manfaat bagi pemilik bisnis/pengelola, bukan pelanggan bisnis tersebut
+- Sertakan CTA yang mendorong pemilik bisnis untuk mencoba
+${platform !== 'whatsapp' ? '- Akhiri dengan 5-8 hashtag relevan (contoh: #AplikasiBisnis #SoftwareUMKM) di baris baru' : '- Tanpa hashtag, lebih personal'}
 - HANYA tulis deskripsinya saja, tanpa judul atau penjelasan`
 
       const [scriptRaw, deskripsiRaw] = await Promise.all([
@@ -105,8 +113,13 @@ Tagline: ${app.tagline}
 Fitur utama: ${app.fitur.join(', ')}
 Harga: Rp 100.000/bulan atau Rp 1.000.000/tahun
 
+Konteks penting:
+- Ini adalah aplikasi/software bisnis, BUKAN layanan untuk konsumen akhir
+- Target pembaca caption: pemilik usaha atau pengelola bisnis yang butuh solusi ini
+
 Aturan:
 - Panjang wajar untuk ${platformLabel}
+- Fokus pada manfaat bagi pemilik bisnis/pengelola, bukan pelanggan bisnis tersebut
 - Sertakan call-to-action jelas di akhir
 - Kalau Instagram/Facebook, tutup dengan 5-8 hashtag relevan di baris baru
 - Kalau WhatsApp, jangan pakai hashtag, buat lebih personal
