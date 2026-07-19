@@ -76,6 +76,8 @@ model ArtikelDraft {
   deskripsi   String
   tags        String[]
   konten      String    @db.Text
+  youtubeUrl  String?
+  gambarPath  String?   // path relatif di GitHub: public/artikel-gambar/{slug}.ext
   status      String    @default("draft") // 'draft' | 'published'
   publishedAt DateTime?
   createdAt   DateTime  @default(now())

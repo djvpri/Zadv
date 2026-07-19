@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface PromoApp { id: number; nama: string; emoji: string; tagline: string }
 
@@ -10,7 +10,21 @@ interface Draft {
   deskripsi: string
   tags: string[]
   konten: string
+  youtubeUrl: string
   date?: string
+}
+
+function youtubeEmbedId(url: string): string | null {
+  const patterns = [
+    /youtu\.be\/([^?&]+)/,
+    /youtube\.com\/watch\?v=([^&]+)/,
+    /youtube\.com\/embed\/([^?&]+)/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return m[1]
+  }
+  return null
 }
 
 function renderMarkdownBasic(md: string): string {
@@ -34,9 +48,29 @@ export default function ArtikelPage() {
   const [result, setResult] = useState<{ url: string } | null>(null)
   const [error, setError] = useState('')
 
+  // Gambar
+  const [gambarFile, setGambarFile] = useState<File | null>(null)
+  const [gambarPreview, setGambarPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     fetch('/api/apps').then(r => r.json()).then(d => setApps(d.filter((a: any) => a.aktif)))
   }, [])
+
+  function handleGambarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setGambarFile(file)
+    const reader = new FileReader()
+    reader.onload = (ev) => setGambarPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  function hapusGambar() {
+    setGambarFile(null)
+    setGambarPreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   async function generate() {
     if (!selectedApp) return
@@ -52,7 +86,7 @@ export default function ArtikelPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Gagal generate')
-      setDraft(data)
+      setDraft({ ...data, youtubeUrl: '' })
       setActivePanel('edit')
     } catch (e: any) {
       setError(e.message)
@@ -66,10 +100,24 @@ export default function ArtikelPage() {
     setPublishing(true)
     setError('')
     try {
+      let gambarBase64: string | undefined
+      let gambarExt: string | undefined
+
+      if (gambarFile) {
+        const buf = await gambarFile.arrayBuffer()
+        gambarBase64 = Buffer.from(buf).toString('base64')
+        gambarExt = gambarFile.name.split('.').pop() || 'jpg'
+      }
+
       const res = await fetch('/api/artikel/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft),
+        body: JSON.stringify({
+          ...draft,
+          youtubeUrl: draft.youtubeUrl || undefined,
+          gambarBase64,
+          gambarExt,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Gagal publish')
@@ -83,7 +131,7 @@ export default function ArtikelPage() {
 
   return (
     <div className="flex gap-6 h-[calc(100vh-120px)]">
-      {/* Sidebar: pilih app */}
+      {/* Sidebar */}
       <aside className="w-56 shrink-0 flex flex-col gap-2 overflow-y-auto">
         <p className="text-[11px] uppercase tracking-widest text-[#8A8378] mb-1 px-1">Pilih Aplikasi</p>
         {apps.map(app => (
@@ -105,7 +153,7 @@ export default function ArtikelPage() {
         ))}
       </aside>
 
-      {/* Main area */}
+      {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -127,9 +175,7 @@ export default function ArtikelPage() {
                 <span className="h-3.5 w-3.5 rounded-full border-2 border-[#1C1917] border-t-transparent animate-spin" />
                 Generating...
               </>
-            ) : (
-              <>✦ Generate Artikel</>
-            )}
+            ) : '✦ Generate Artikel'}
           </button>
         </div>
 
@@ -140,7 +186,7 @@ export default function ArtikelPage() {
           </div>
         )}
 
-        {/* Loading placeholder */}
+        {/* Loading */}
         {loading && (
           <div className="flex-1 rounded-xl border border-white/10 bg-white/3 flex flex-col items-center justify-center gap-4 text-[#6B6560]">
             <div className="h-8 w-8 rounded-full border-2 border-[#D8A23D] border-t-transparent animate-spin" />
@@ -184,6 +230,65 @@ export default function ArtikelPage() {
                     <span key={tag} className="rounded-full bg-[#D8A23D]/10 border border-[#D8A23D]/20 px-2 py-0.5 text-[11px] text-[#D8A23D]">{tag}</span>
                   ))}
                 </div>
+              </div>
+
+              {/* Gambar */}
+              <div className="flex items-start gap-2 pt-1">
+                <span className="text-[11px] text-[#8A8378] w-20 shrink-0 pt-0.5">Gambar</span>
+                <div className="flex-1 flex items-center gap-3 flex-wrap">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handleGambarChange}
+                  />
+                  {gambarPreview ? (
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={gambarPreview}
+                        alt="preview"
+                        className="h-12 w-20 object-cover rounded border border-white/10"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <p className="text-[11px] text-[#8A8378] truncate max-w-[140px]">{gambarFile?.name}</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="text-[11px] text-[#D8A23D] hover:underline"
+                          >
+                            Ganti
+                          </button>
+                          <button
+                            onClick={hapusGambar}
+                            className="text-[11px] text-red-400 hover:underline"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 rounded border border-white/15 hover:border-[#D8A23D]/40 bg-white/5 hover:bg-[#D8A23D]/5 px-3 py-1.5 text-[12px] text-[#B8B3AC] hover:text-[#D8A23D] transition-colors"
+                    >
+                      <span>🖼</span> Upload Gambar
+                    </button>
+                  )}
+                  <span className="text-[10px] text-[#6B6560]">JPG/PNG/WebP — akan dipublish ke zomet-main</span>
+                </div>
+              </div>
+
+              {/* YouTube */}
+              <div className="flex items-start gap-2">
+                <span className="text-[11px] text-[#8A8378] w-20 shrink-0 pt-0.5">YouTube</span>
+                <input
+                  value={draft.youtubeUrl}
+                  onChange={e => setDraft({ ...draft, youtubeUrl: e.target.value })}
+                  placeholder="https://youtu.be/... atau https://youtube.com/watch?v=..."
+                  className="flex-1 bg-transparent text-[13px] text-[#B8B3AC] placeholder:text-[#4A4540] outline-none border-b border-white/10 pb-0.5 focus:border-[#D8A23D]"
+                />
               </div>
             </div>
 
@@ -233,16 +338,38 @@ export default function ArtikelPage() {
                   spellCheck={false}
                 />
               ) : (
-                <div
-                  className="h-full overflow-y-auto px-6 py-5 text-[14px] leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdownBasic(draft.konten) }}
-                />
+                <div className="h-full overflow-y-auto px-6 py-5 text-[14px] leading-relaxed">
+                  {/* Preview gambar */}
+                  {gambarPreview && (
+                    <img
+                      src={gambarPreview}
+                      alt="Gambar artikel"
+                      className="w-full max-h-64 object-cover rounded-lg mb-5 border border-white/10"
+                    />
+                  )}
+                  {/* Preview YouTube */}
+                  {draft.youtubeUrl && youtubeEmbedId(draft.youtubeUrl) && (
+                    <div className="mb-5 rounded-lg overflow-hidden aspect-video">
+                      <iframe
+                        src={`https://www.youtube.com/embed/${youtubeEmbedId(draft.youtubeUrl)}`}
+                        className="w-full h-full"
+                        allowFullScreen
+                      />
+                    </div>
+                  )}
+                  {draft.youtubeUrl && !youtubeEmbedId(draft.youtubeUrl) && (
+                    <div className="mb-4 rounded border border-yellow-500/20 bg-yellow-500/5 px-3 py-2 text-[12px] text-yellow-400">
+                      ⚠ URL YouTube tidak valid
+                    </div>
+                  )}
+                  <div dangerouslySetInnerHTML={{ __html: renderMarkdownBasic(draft.konten) }} />
+                </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Success state */}
+        {/* Success */}
         {result && (
           <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center">
             <div className="w-16 h-16 rounded-full bg-green-500/15 flex items-center justify-center text-3xl">✓</div>
@@ -260,13 +387,13 @@ export default function ArtikelPage() {
             </a>
             <div className="flex gap-3 mt-2">
               <button
-                onClick={() => { setDraft(null); setResult(null); setError('') }}
+                onClick={() => { setDraft(null); setResult(null); setError(''); hapusGambar() }}
                 className="rounded-lg bg-white/8 hover:bg-white/12 px-4 py-2 text-[13px] text-[#B8B3AC] transition-colors"
               >
                 Generate Artikel Baru
               </button>
               <button
-                onClick={() => { setResult(null); }}
+                onClick={() => setResult(null)}
                 className="rounded-lg bg-white/8 hover:bg-white/12 px-4 py-2 text-[13px] text-[#B8B3AC] transition-colors"
               >
                 Edit Artikel Ini
