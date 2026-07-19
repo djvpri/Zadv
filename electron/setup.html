@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zadv — Setup Koneksi</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    background: #0a0a0a;
+    color: #e2e8f0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-app-region: drag;
+  }
+
+  .card {
+    -webkit-app-region: no-drag;
+    width: 100%;
+    max-width: 480px;
+    padding: 36px 40px 40px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+
+  .logo-mark {
+    width: 36px;
+    height: 36px;
+    background: #2563EB;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -1px;
+    flex-shrink: 0;
+  }
+
+  .logo-text { font-size: 20px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.5px; }
+  .logo-sub  { font-size: 11px; color: #64748b; margin-top: 1px; }
+
+  h2 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 12.5px;
+    color: #64748b;
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+
+  .field { margin-bottom: 16px; }
+
+  label {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #94a3b8;
+    margin-bottom: 5px;
+    letter-spacing: 0.2px;
+  }
+
+  label .required { color: #ef4444; margin-left: 2px; }
+  label .opt      { color: #475569; font-weight: 400; margin-left: 4px; }
+
+  input {
+    width: 100%;
+    padding: 9px 12px;
+    background: #111;
+    border: 1px solid #262626;
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 13px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-app-region: no-drag;
+  }
+
+  input:focus { border-color: #2563EB; }
+  input::placeholder { color: #374151; }
+
+  .hint {
+    font-size: 11px;
+    color: #475569;
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid #1a1a1a;
+    margin: 20px 0;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 11px;
+    background: #2563EB;
+    border: none;
+    border-radius: 9px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 24px;
+    -webkit-app-region: no-drag;
+  }
+
+  .btn:hover:not(:disabled) { background: #1d4ed8; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .status-box {
+    margin-top: 14px;
+    padding: 11px 14px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    display: none;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .status-box.loading { background: #1e293b; color: #94a3b8; display: flex; }
+  .status-box.error   { background: #1c0a0a; border: 1px solid #7f1d1d; color: #fca5a5; display: flex; }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(148,163,184,0.3);
+    border-top-color: #94a3b8;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .err-icon { flex-shrink: 0; margin-top: 1px; }
+  .err-msg  { white-space: pre-wrap; word-break: break-all; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-mark">Z</div>
+    <div>
+      <div class="logo-text">Zadv</div>
+      <div class="logo-sub">Desktop · Setup Koneksi</div>
+    </div>
+  </div>
+
+  <h2>Hubungkan ke Database Railway</h2>
+  <p class="subtitle">Data tetap tersimpan di Railway — desktop app hanya memindahkan proses AI &amp; video ke mesin lokal kamu.</p>
+
+  <div class="field">
+    <label>DATABASE_URL <span class="required">*</span></label>
+    <input id="databaseUrl" type="text" placeholder="postgresql://user:pass@host.railway.app:5432/railway" autocomplete="off" spellcheck="false">
+    <div class="hint">Salin dari Railway → project → Variables → DATABASE_URL</div>
+  </div>
+
+  <div class="field">
+    <label>GEMINI_API_KEY <span class="required">*</span></label>
+    <input id="geminiApiKey" type="password" placeholder="AIzaSy..." autocomplete="off" spellcheck="false">
+    <div class="hint">Dari <span style="color:#3b82f6">aistudio.google.com</span></div>
+  </div>
+
+  <div class="field">
+    <label>ADMIN_PASSWORD <span class="required">*</span></label>
+    <input id="adminPassword" type="password" placeholder="Password admin Zadv kamu" autocomplete="off">
+    <div class="hint">Harus sama dengan yang diset di Railway</div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="field">
+    <label>GITHUB_TOKEN <span class="opt">(opsional)</span></label>
+    <input id="githubToken" type="password" placeholder="ghp_..." autocomplete="off" spellcheck="false">
+    <div class="hint">Diperlukan untuk fitur publish artikel ke GitHub</div>
+  </div>
+
+  <button class="btn" id="connectBtn" onclick="connect()">
+    <svg id="btnIcon" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+    </svg>
+    <span id="btnLabel">Hubungkan &amp; Mulai</span>
+  </button>
+
+  <div class="status-box loading" id="statusLoading">
+    <div class="spinner"></div>
+    <span id="statusMsg">Menghubungkan ke database &amp; memulai server...</span>
+  </div>
+
+  <div class="status-box error" id="statusError">
+    <svg class="err-icon" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#ef4444" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <path stroke-linecap="round" d="M12 8v4m0 4h.01"/>
+    </svg>
+    <span class="err-msg" id="errorMsg"></span>
+  </div>
+</div>
+
+<script>
+  // Pre-fill jika sudah ada config sebelumnya
+  window.addEventListener('DOMContentLoaded', async () => {
+    const cfg = await window.electron?.loadConfig()
+    if (cfg) {
+      if (cfg.databaseUrl)   document.getElementById('databaseUrl').value   = cfg.databaseUrl
+      if (cfg.geminiApiKey)  document.getElementById('geminiApiKey').value  = cfg.geminiApiKey
+      if (cfg.adminPassword) document.getElementById('adminPassword').value = cfg.adminPassword
+      if (cfg.githubToken)   document.getElementById('githubToken').value   = cfg.githubToken
+    }
+  })
+
+  window.electron?.onServerStatus(({ type, message }) => {
+    const loadingBox = document.getElementById('statusLoading')
+    const errorBox   = document.getElementById('statusError')
+    const btn        = document.getElementById('connectBtn')
+
+    if (type === 'starting') {
+      loadingBox.className = 'status-box loading'
+      document.getElementById('statusMsg').textContent = message || 'Memulai server...'
+      errorBox.className = 'status-box'
+    }
+    if (type === 'error') {
+      loadingBox.className = 'status-box'
+      errorBox.className   = 'status-box error'
+      document.getElementById('errorMsg').textContent = message || 'Terjadi kesalahan.'
+      btn.disabled = false
+      document.getElementById('btnLabel').textContent = 'Coba Lagi'
+    }
+    if (type === 'ready') {
+      // Main window akan dibuka oleh main process — setup window ditutup otomatis
+    }
+  })
+
+  function connect() {
+    const databaseUrl   = document.getElementById('databaseUrl').value.trim()
+    const geminiApiKey  = document.getElementById('geminiApiKey').value.trim()
+    const adminPassword = document.getElementById('adminPassword').value.trim()
+    const githubToken   = document.getElementById('githubToken').value.trim()
+
+    const errorBox = document.getElementById('statusError')
+    errorBox.className = 'status-box'
+
+    if (!databaseUrl || !geminiApiKey || !adminPassword) {
+      errorBox.className = 'status-box error'
+      document.getElementById('errorMsg').textContent = 'Database URL, Gemini API Key, dan Admin Password wajib diisi.'
+      return
+    }
+
+    document.getElementById('connectBtn').disabled = true
+    document.getElementById('btnLabel').textContent = 'Menghubungkan...'
+    document.getElementById('statusLoading').className = 'status-box loading'
+
+    window.electron.saveConfig({ databaseUrl, geminiApiKey, adminPassword, githubToken })
+  }
+</script>
+</body>
+</html>
