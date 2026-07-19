@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: true },
-  output: process.env.BUILD_TARGET === 'electron' ? 'standalone' : undefined,
+  output: 'standalone',
   experimental: {
     serverActions: {
       bodySizeLimit: '60mb',
