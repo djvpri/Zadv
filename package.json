@@ -5,7 +5,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public",
+    "build": "prisma generate && next build && cp -r .next/static .next/standalone/.next/static && (cp -r public .next/standalone/public 2>/dev/null || true)",
     "start": "node scripts/migrate.js && node .next/standalone/server.js",
     "lint": "next lint",
     "seed": "node scripts/seed-apps.js",
@@ -45,6 +45,7 @@
     "appId": "id.zomet.zadv",
     "productName": "Zadv",
     "asar": false,
+    "forceCodeSigning": false,
     "directories": {
       "output": "dist-electron"
     },
@@ -61,7 +62,9 @@
           "arch": ["x64"]
         }
       ],
-      "artifactName": "Zadv-portable-${version}.exe"
+      "artifactName": "Zadv-portable-${version}.exe",
+      "sign": null,
+      "signingHashAlgorithms": null
     }
   }
 }
