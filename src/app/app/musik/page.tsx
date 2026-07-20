@@ -26,6 +26,7 @@ export default function HalamanMusik() {
   const [tracks, setTracks] = useState<MusicTrack[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadInfo, setUploadInfo] = useState('')
   const [nama, setNama] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState('')
@@ -50,31 +51,59 @@ export default function HalamanMusik() {
   const handleUpload = async () => {
     if (!file) { setError('Pilih file terlebih dahulu'); return }
     setUploading(true)
+    setUploadInfo('')
     setError('')
     setSukses('')
 
-    // Kirim file sebagai raw binary body (bukan multipart) agar tidak kena batas
-    // parsing Next.js. Metadata dikirim via query params.
-    const params = new URLSearchParams({ type: file.type, filename: file.name })
-    if (nama.trim()) params.set('nama', nama.trim())
+    const qp = new URLSearchParams({ type: file.type, filename: file.name })
+    if (nama.trim()) qp.set('nama', nama.trim())
+    const url = `/api/music?${qp}`
+
+    const CHUNK_SIZE = 4 * 1024 * 1024 // 4MB
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
 
     try {
-      const res = await fetch(`/api/music?${params}`, {
-        method: 'POST',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Upload gagal')
-      setSukses(`"${data.nama}" berhasil diupload!`)
+      let data: { nama?: string; error?: string; id?: number }
+
+      if (totalChunks <= 1) {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        })
+        data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Upload gagal')
+      } else {
+        const uploadId = crypto.randomUUID()
+        for (let i = 0; i < totalChunks; i++) {
+          setUploadInfo(`Mengunggah bagian ${i + 1} dari ${totalChunks}...`)
+          const start = i * CHUNK_SIZE
+          const end = Math.min(start + CHUNK_SIZE, file.size)
+          const res = await fetch(url, {
+            method: 'POST',
+            body: file.slice(start, end),
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'x-upload-id': uploadId,
+              'x-chunk-index': String(i),
+              'x-total-chunks': String(totalChunks),
+            },
+          })
+          data = await res.json()
+          if (!res.ok) throw new Error((data as {error?:string}).error || `Gagal bagian ${i + 1}`)
+        }
+      }
+
+      setSukses(`"${data!.nama}" berhasil diupload!`)
       setFile(null)
       setNama('')
       if (inputRef.current) inputRef.current.value = ''
       load()
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Upload gagal')
     } finally {
       setUploading(false)
+      setUploadInfo('')
     }
   }
 
@@ -162,7 +191,7 @@ export default function HalamanMusik() {
             disabled={uploading || !file}
             className="w-full py-2 rounded-xl text-sm font-medium bg-[#8B7355] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#7A6345] transition-colors"
           >
-            {uploading ? '⏳ Mengupload...' : '⬆ Upload Musik'}
+            {uploadInfo || (uploading ? '⏳ Mengupload...' : '⬆ Upload Musik')}
           </button>
         </div>
       </div>
