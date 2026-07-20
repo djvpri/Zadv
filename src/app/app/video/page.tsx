@@ -150,20 +150,29 @@ export default function VideoPage() {
     setError('')
     setJob(null)
     try {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('appId', String(appId))
-      form.append('script', script)
-      form.append('style_ukuran', styleUkuran)
-      form.append('style_posisi', stylePosisi)
-      form.append('style_latar', styleLatar)
-      form.append('style_warna', styleWarna)
-      if (musicTrackId) form.append('musicTrackId', String(musicTrackId))
-      if (muteAsli) form.append('muteAsli', '1')
-      if (fadeOut) form.append('fadeOut', '1')
-      if (!loopMusik) form.append('noLoop', '1')
-      if (mulaiDetik > 0) form.append('mulaiDetik', String(mulaiDetik))
-      const res = await fetch('/api/video/upload', { method: 'POST', body: form })
+      // Kirim file sebagai raw binary body, metadata lewat query params
+      // (sama seperti /api/music — bypass multipart parsing yang sering terpotong)
+      const params = new URLSearchParams({
+        appId: String(appId),
+        script,
+        style_ukuran: styleUkuran,
+        style_posisi: stylePosisi,
+        style_latar: styleLatar,
+        style_warna: styleWarna,
+        filename: file.name,
+        type: file.type || 'video/mp4',
+      })
+      if (musicTrackId) params.set('musicTrackId', String(musicTrackId))
+      if (muteAsli) params.set('muteAsli', '1')
+      if (fadeOut) params.set('fadeOut', '1')
+      if (!loopMusik) params.set('noLoop', '1')
+      if (mulaiDetik > 0) params.set('mulaiDetik', String(mulaiDetik))
+
+      const res = await fetch(`/api/video/upload?${params}`, {
+        method: 'POST',
+        body: file,
+        headers: { 'content-type': file.type || 'video/mp4' },
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Gagal upload')
       setJob({ id: data.id, status: 'pending', siap: false })
