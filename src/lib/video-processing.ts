@@ -296,16 +296,17 @@ export async function prosesVideo(
     // Kalau ada musicPath → bakar caption dulu ke file sementara,
     // lalu mix audio musik sebagai backsound di tahap terpisah.
     if (musicPath) {
-      // Validasi file musik ada sebelum proses
       const musikAda = await fs.access(musicPath).then(() => true).catch(() => false)
       if (!musikAda) {
-        console.warn(`[video] File musik tidak ditemukan: ${musicPath}, lanjut tanpa musik`)
-        await bakarCaption(sumberUntukCaption, captionMentah, outputPath, dirSementara, styleUkuran, stylePosisi, styleLatar, styleWarna)
-      } else {
-        const tempOutput = path.join(dirSementara, 'dengan_caption.mp4')
-        await bakarCaption(sumberUntukCaption, captionMentah, tempOutput, dirSementara, styleUkuran, stylePosisi, styleLatar, styleWarna)
-        await mixBacksound(tempOutput, musicPath, outputPath, { muteAsli, fadeOut, loopMusik, mulaiDetik })
+        throw new Error(
+          `File musik tidak ditemukan di server. ` +
+          `Ini terjadi jika musik diupload sebelum Volume dikonfigurasi (storage lama hilang saat redeploy). ` +
+          `Hapus track musik ini dan upload ulang, lalu coba lagi.`
+        )
       }
+      const tempOutput = path.join(dirSementara, 'dengan_caption.mp4')
+      await bakarCaption(sumberUntukCaption, captionMentah, tempOutput, dirSementara, styleUkuran, stylePosisi, styleLatar, styleWarna)
+      await mixBacksound(tempOutput, musicPath, outputPath, { muteAsli, fadeOut, loopMusik, mulaiDetik })
     } else {
       await bakarCaption(sumberUntukCaption, captionMentah, outputPath, dirSementara, styleUkuran, stylePosisi, styleLatar, styleWarna)
     }
