@@ -263,6 +263,18 @@ export async function prosesVideo(
   await fs.mkdir(dirSementara, { recursive: true })
 
   try {
+    // Re-mux dengan faststart: pindahkan moov atom ke depan file.
+    // Diperlukan untuk video dari kamera/HP yang menaruh moov di akhir (lazim di MP4 hasil rekaman).
+    // Kalau file terpotong saat upload, langkah ini juga akan gagal dengan pesan jelas.
+    const fastStartPath = path.join(dirSementara, 'faststart.mp4')
+    try {
+      await jalankan('ffmpeg', ['-y', '-i', inputPath, '-c', 'copy', '-movflags', '+faststart', fastStartPath])
+      inputPath = fastStartPath
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      throw new Error(`File video tidak valid atau upload tidak lengkap: ${msg.slice(-400)}`)
+    }
+
     const durasiAsli = await getDurasi(inputPath)
     let sumberUntukCaption = inputPath
 

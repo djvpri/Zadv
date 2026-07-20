@@ -155,6 +155,7 @@ export default function VideoPage() {
       const metadata: Record<string, unknown> = {
         appId,
         script,
+        fileSize: file.size,
         style_ukuran: styleUkuran,
         style_posisi: stylePosisi,
         style_latar: styleLatar,

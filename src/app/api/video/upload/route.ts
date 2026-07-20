@@ -116,6 +116,16 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Validasi upload tidak terpotong — bandingkan ukuran actual vs ukuran yang dilaporkan browser
+    const expectedSize = g('fileSize') ? Number(g('fileSize')) : null
+    if (expectedSize && stat.size !== expectedSize) {
+      await fs.unlink(tempPath).catch(() => {})
+      return NextResponse.json({
+        error: `Upload tidak lengkap — diterima ${(stat.size / 1024 / 1024).toFixed(1)}MB dari ${(expectedSize / 1024 / 1024).toFixed(1)}MB. ` +
+               `Coba lagi dengan koneksi yang lebih stabil.`,
+      }, { status: 400 })
+    }
+
     const appIdRaw = g('appId')
     let appId: number | null = null
     if (appIdRaw) { const n = Number(appIdRaw); if (Number.isInteger(n)) appId = n }
