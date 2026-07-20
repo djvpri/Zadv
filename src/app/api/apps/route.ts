@@ -2,11 +2,16 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 
 export async function GET() {
-  const apps = await prisma.promoApp.findMany({
-    where: { aktif: true },
-    orderBy: { urutan: 'asc' },
-  })
-  return NextResponse.json(apps)
+  try {
+    const apps = await prisma.promoApp.findMany({
+      where: { aktif: true },
+      orderBy: { urutan: 'asc' },
+    })
+    return NextResponse.json(apps)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }
 
 export async function POST(req: Request) {

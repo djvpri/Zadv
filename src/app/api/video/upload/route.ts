@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server'
 import path from 'path'
 import { randomUUID } from 'crypto'
-import { promises as fs } from 'fs'
+import { createWriteStream } from 'fs'
+import { pipeline } from 'stream/promises'
+import busboy from 'busboy'
 import prisma from '@/lib/db'
 import { pastikanVideoDir, MAX_UPLOAD_BYTES, TIPE_VIDEO_DIIZINKAN } from '@/lib/video-storage'
 import { prosesVideo } from '@/lib/video-processing'
 
 export const runtime = 'nodejs'
 
-// Proses video di background — TIDAK di-await oleh caller (fire-and-forget).
-// Ini aman karena zadv jalan sebagai server Node persisten di Railway
-// (bukan serverless/edge yang mematikan proses setelah response terkirim).
 async function prosesDiBackground(
   jobId: number,
   inputPath: string,
@@ -43,64 +42,118 @@ async function prosesDiBackground(
   }
 }
 
+interface ParsedForm {
+  fields: Record<string, string>
+  file: { path: string; mimetype: string; size: number; name: string } | null
+}
+
+function parseMultipart(req: Request): Promise<ParsedForm> {
+  return new Promise((resolve, reject) => {
+    const contentType = req.headers.get('content-type') || ''
+    const bb = busboy({ headers: { 'content-type': contentType }, limits: { fileSize: MAX_UPLOAD_BYTES } })
+
+    const fields: Record<string, string> = {}
+    let fileResult: ParsedForm['file'] = null
+    const filePromises: Promise<void>[] = []
+
+    bb.on('field', (name: string, val: string) => { fields[name] = val })
+
+    bb.on('file', (fieldname: string, stream: NodeJS.ReadableStream, info: { filename: string; mimeType: string }) => {
+      const fileMimetype = info.mimeType
+      const fileName = info.filename
+      let fileSizeTotal = 0
+
+      const p = (async () => {
+        const dir = await pastikanVideoDir()
+        const ext = path.extname(fileName) || '.mp4'
+        const tempPath = path.join(dir, `input-${randomUUID()}${ext}`)
+        const ws = createWriteStream(tempPath)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(stream as any).on('data', (chunk: Buffer) => { fileSizeTotal += chunk.length })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await pipeline(stream as any, ws)
+        fileResult = { path: tempPath, mimetype: fileMimetype, size: fileSizeTotal, name: fileName }
+      })()
+
+      filePromises.push(p)
+      p.catch(reject)
+    })
+
+    bb.on('finish', () => {
+      Promise.all(filePromises).then(() => resolve({ fields, file: fileResult })).catch(reject)
+    })
+
+    bb.on('error', (err: Error) => reject(err))
+
+    // Pipe Web ReadableStream → busboy Writable
+    const reader = req.body!.getReader()
+    ;(async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) { bb.end(); break }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ;(bb as any).write(value)
+        }
+      } catch (err) {
+        reject(err)
+      }
+    })()
+  })
+}
+
 export async function POST(req: Request) {
-  const form = await req.formData()
-  const file = form.get('file')
-  const caption = (form.get('script') || form.get('caption')) as string | null
-  const appIdRaw = form.get('appId')
-  const musicTrackIdRaw = form.get('musicTrackId')
-  const muteAsliRaw = form.get('muteAsli')
-  const fadeOutRaw = form.get('fadeOut')
-  const noLoopRaw = form.get('noLoop')
-  const mulaiDetikRaw = form.get('mulaiDetik')
-  const styleUkuran = (form.get('style_ukuran') as string) || 'sedang'
-  const stylePosisi = (form.get('style_posisi') as string) || 'bawah'
-  const styleLatar = (form.get('style_latar') as string) || 'samar'
-  const styleWarna = (form.get('style_warna') as string) || 'putih'
+  try {
+    const { fields, file } = await parseMultipart(req)
 
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: 'File video wajib diisi' }, { status: 400 })
-  }
-  if (typeof caption !== 'string' || !caption.trim()) {
-    return NextResponse.json({ error: 'Teks caption wajib diisi' }, { status: 400 })
-  }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return NextResponse.json({ error: `Video maksimal ${MAX_UPLOAD_BYTES / 1024 / 1024}MB` }, { status: 400 })
-  }
-  if (!TIPE_VIDEO_DIIZINKAN.includes(file.type)) {
-    return NextResponse.json({ error: 'Format video tidak didukung (pakai MP4, MOV, WebM, atau MKV)' }, { status: 400 })
-  }
+    if (!file) return NextResponse.json({ error: 'File video wajib diisi' }, { status: 400 })
 
-  let appId: number | null = null
-  if (appIdRaw && typeof appIdRaw === 'string') {
-    const n = Number(appIdRaw)
-    if (Number.isInteger(n)) appId = n
-  }
+    const caption = fields.script || fields.caption || ''
+    if (!caption.trim()) return NextResponse.json({ error: 'Teks caption wajib diisi' }, { status: 400 })
 
-  let musicTrackId: number | null = null
-  let musicPath: string | null = null
-  if (musicTrackIdRaw && typeof musicTrackIdRaw === 'string') {
-    const n = Number(musicTrackIdRaw)
-    if (Number.isInteger(n) && n > 0) {
-      const track = await prisma.musicTrack.findUnique({ where: { id: n } })
-      if (track) { musicTrackId = track.id; musicPath = track.path }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json({ error: `Video terlalu besar — maksimal ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)}MB` }, { status: 400 })
     }
+    if (!TIPE_VIDEO_DIIZINKAN.includes(file.mimetype)) {
+      return NextResponse.json({ error: 'Format tidak didukung — pakai MP4, MOV, WebM, atau MKV' }, { status: 400 })
+    }
+
+    const appIdRaw = fields.appId
+    let appId: number | null = null
+    if (appIdRaw) { const n = Number(appIdRaw); if (Number.isInteger(n)) appId = n }
+
+    let musicTrackId: number | null = null
+    let musicPath: string | null = null
+    if (fields.musicTrackId) {
+      const n = Number(fields.musicTrackId)
+      if (Number.isInteger(n) && n > 0) {
+        const track = await prisma.musicTrack.findUnique({ where: { id: n } })
+        if (track) { musicTrackId = track.id; musicPath = track.path }
+      }
+    }
+
+    const videoDir = path.dirname(file.path)
+
+    const job = await prisma.videoJob.create({
+      data: { appId, caption, inputPath: file.path, status: 'pending', musicTrackId },
+    })
+
+    const styleUkuran  = fields.style_ukuran || 'sedang'
+    const stylePosisi  = fields.style_posisi  || 'bawah'
+    const styleLatar   = fields.style_latar   || 'samar'
+    const styleWarna   = fields.style_warna   || 'putih'
+
+    prosesDiBackground(
+      job.id, file.path, caption, videoDir, musicPath,
+      fields.muteAsli === '1', fields.fadeOut === '1', fields.noLoop !== '1',
+      fields.mulaiDetik ? Number(fields.mulaiDetik) : 0,
+      styleUkuran, stylePosisi, styleLatar, styleWarna
+    ).catch((e) => { console.error('prosesDiBackground gagal:', e) })
+
+    return NextResponse.json({ id: job.id, status: job.status })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[video/upload] Error:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
-
-  const videoDir = await pastikanVideoDir()
-  const ext = path.extname(file.name) || '.mp4'
-  const inputPath = path.join(videoDir, `input-${randomUUID()}${ext}`)
-  const buffer = Buffer.from(await file.arrayBuffer())
-  await fs.writeFile(inputPath, buffer)
-
-  const job = await prisma.videoJob.create({
-    data: { appId, caption, inputPath, status: 'pending', musicTrackId },
-  })
-
-  // Sengaja tidak di-await — client polling status lewat endpoint terpisah.
-  prosesDiBackground(job.id, inputPath, caption, videoDir, musicPath, muteAsliRaw === "1", fadeOutRaw === "1", noLoopRaw !== "1", mulaiDetikRaw ? Number(mulaiDetikRaw) : 0, styleUkuran, stylePosisi, styleLatar, styleWarna).catch((e) => {
-    console.error('prosesDiBackground gagal tak terduga:', e)
-  })
-
-  return NextResponse.json({ id: job.id, status: job.status })
 }

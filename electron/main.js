@@ -3,7 +3,9 @@ const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const http = require('http')
+const net = require('net')
 const crypto = require('crypto')
+const { execSync } = require('child_process')
 
 const PORT = 3456
 const CONFIG_FILE = path.join(app.getPath('userData'), 'zadv-config.json')
@@ -52,7 +54,21 @@ function waitForServer(port, timeout = 45000) {
   })
 }
 
+function killPortIfBusy(port) {
+  try {
+    const result = execSync(`netstat -ano | findstr :${port}`, { encoding: 'utf8', stdio: ['pipe','pipe','ignore'] })
+    const lines = result.split('\n').filter(l => l.includes(`0.0.0.0:${port}`) || l.includes(`127.0.0.1:${port}`))
+    for (const line of lines) {
+      const pid = line.trim().split(/\s+/).pop()
+      if (pid && /^\d+$/.test(pid) && pid !== '0') {
+        try { execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' }) } catch {}
+      }
+    }
+  } catch {}
+}
+
 function startNextServer(config) {
+  killPortIfBusy(PORT)
   const serverPath = getServerPath()
   if (!fs.existsSync(serverPath)) {
     throw new Error(`Server tidak ditemukan di:\n${serverPath}\n\nJalankan "npm run build:electron" terlebih dahulu.`)
@@ -67,9 +83,22 @@ function startNextServer(config) {
     saveConfig(config)
   }
 
+  // Pastikan koneksi Railway eksternal selalu pakai SSL
+  let dbUrl = config.databaseUrl || ''
+  if (dbUrl && !dbUrl.includes('sslmode=') && (dbUrl.includes('rlwy.net') || dbUrl.includes('railway.app') || dbUrl.includes('railway.internal'))) {
+    dbUrl += (dbUrl.includes('?') ? '&' : '?') + 'sslmode=require'
+  }
+  if (dbUrl.includes('railway.internal')) {
+    throw new Error(
+      'DATABASE_URL menggunakan hostname internal Railway (railway.internal).\n\n' +
+      'Gunakan DATABASE_PUBLIC_URL dari Railway Postgres Variables —\n' +
+      'hostname-nya berakhiran .rlwy.net atau .railway.app'
+    )
+  }
+
   const env = {
     ...process.env,
-    DATABASE_URL: config.databaseUrl,
+    DATABASE_URL: dbUrl,
     GEMINI_API_KEY: config.geminiApiKey,
     JWT_SECRET: jwtSecret,
     ADMIN_PASSWORD: config.adminPassword,
@@ -78,6 +107,7 @@ function startNextServer(config) {
     PORT: String(PORT),
     HOSTNAME: '127.0.0.1',
     NODE_ENV: 'production',
+    ELECTRON_APP: 'true',
   }
 
   // utilityProcess menggunakan Node.js bawaan Electron — tidak perlu bundel node.exe terpisah
@@ -216,6 +246,27 @@ ipcMain.on('save-config', async (event, data) => {
 })
 
 ipcMain.handle('load-config', () => loadConfig())
+
+ipcMain.handle('test-db', async (_, dbUrl) => {
+  if (!dbUrl) return { ok: false, message: 'URL kosong' }
+  try {
+    // Parse postgresql://user:pass@host:port/db
+    const url = new URL(dbUrl.replace(/^postgresql:\/\//, 'pg://'))
+    const host = url.hostname
+    const port = parseInt(url.port || '5432', 10)
+    if (!host) return { ok: false, message: 'Host tidak ditemukan di URL' }
+
+    await new Promise((resolve, reject) => {
+      const sock = net.createConnection({ host, port, timeout: 5000 })
+      sock.on('connect', () => { sock.destroy(); resolve() })
+      sock.on('timeout', () => { sock.destroy(); reject(new Error(`Timeout — tidak bisa menjangkau ${host}:${port}`) ) })
+      sock.on('error', (e) => reject(new Error(`${host}:${port} — ${e.message}`)))
+    })
+    return { ok: true, message: `Host ${host}:${port} terjangkau ✓` }
+  } catch (e) {
+    return { ok: false, message: e.message }
+  }
+})
 
 // ──────────────────────────── Startup ────────────────────────────
 

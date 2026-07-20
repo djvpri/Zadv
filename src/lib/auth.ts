@@ -19,9 +19,11 @@ export async function buatSessionToken(): Promise<string> {
 
 export async function setSessionCookie(token: string) {
   const store = await cookies()
+  // Electron pakai HTTP di localhost — Secure flag harus false agar cookie terkirim
+  const isElectron = process.env.ELECTRON_APP === 'true'
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: !isElectron && process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: MAX_AGE_DETIK,
     path: '/',

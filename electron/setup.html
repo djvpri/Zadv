@@ -103,6 +103,44 @@
     line-height: 1.4;
   }
 
+  .input-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .input-row input { flex: 1; }
+
+  .btn-test {
+    flex-shrink: 0;
+    padding: 9px 13px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    -webkit-app-region: no-drag;
+  }
+
+  .btn-test:hover:not(:disabled) { background: #263348; color: #cbd5e1; border-color: #475569; }
+  .btn-test:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .test-result {
+    display: none;
+    margin-top: 5px;
+    font-size: 11px;
+    padding: 5px 9px;
+    border-radius: 6px;
+    line-height: 1.4;
+  }
+
+  .test-result.ok  { display: block; background: #052e16; color: #86efac; border: 1px solid #14532d; }
+  .test-result.err { display: block; background: #1c0a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+
   .divider {
     border: none;
     border-top: 1px solid #1a1a1a;
@@ -175,9 +213,13 @@
   <p class="subtitle">Data tetap tersimpan di Railway — desktop app hanya memindahkan proses AI &amp; video ke mesin lokal kamu.</p>
 
   <div class="field">
-    <label>DATABASE_URL <span class="required">*</span></label>
-    <input id="databaseUrl" type="text" placeholder="postgresql://user:pass@host.railway.app:5432/railway" autocomplete="off" spellcheck="false">
-    <div class="hint">Salin dari Railway → project → Variables → DATABASE_URL</div>
+    <label>DATABASE_PUBLIC_URL <span class="required">*</span></label>
+    <div class="input-row">
+      <input id="databaseUrl" type="text" placeholder="postgresql://postgres:pass@roundhouse.proxy.rlwy.net:PORT/railway" autocomplete="off" spellcheck="false">
+      <button class="btn-test" id="testBtn" onclick="testKoneksi()">Tes</button>
+    </div>
+    <div class="test-result" id="testResult"></div>
+    <div class="hint">Railway → Postgres service → <strong style="color:#f59e0b">Variables</strong> → salin nilai <strong style="color:#f59e0b">DATABASE_PUBLIC_URL</strong> (bukan DATABASE_URL yang internal). SSL akan ditambahkan otomatis.</div>
   </div>
 
   <div class="field">
@@ -254,6 +296,34 @@
       // Main window akan dibuka oleh main process — setup window ditutup otomatis
     }
   })
+
+  async function testKoneksi() {
+    const dbUrl = document.getElementById('databaseUrl').value.trim()
+    const resultEl = document.getElementById('testResult')
+    const testBtn = document.getElementById('testBtn')
+
+    if (!dbUrl) {
+      resultEl.className = 'test-result err'
+      resultEl.textContent = 'Isi DATABASE_PUBLIC_URL terlebih dahulu.'
+      return
+    }
+
+    testBtn.disabled = true
+    testBtn.textContent = '...'
+    resultEl.className = 'test-result'
+
+    const result = await window.electron?.testDb(dbUrl)
+    testBtn.disabled = false
+    testBtn.textContent = 'Tes'
+
+    if (result?.ok) {
+      resultEl.className = 'test-result ok'
+      resultEl.textContent = '✓ ' + result.message
+    } else {
+      resultEl.className = 'test-result err'
+      resultEl.textContent = '✗ ' + (result?.message || 'Gagal')
+    }
+  }
 
   function connect() {
     const databaseUrl   = document.getElementById('databaseUrl').value.trim()
