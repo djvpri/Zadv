@@ -18,9 +18,10 @@ async function isValid(token: string | undefined): Promise<boolean> {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  // /api/music melewati upload file besar — skip middleware agar tidak melewati
+  // /api/music dan /api/video melewati upload file besar — skip middleware agar tidak melewati
   // Edge runtime yang punya batas body kecil. Auth dicek manual di route-nya.
   if (pathname.startsWith('/api/music')) return NextResponse.next()
+  if (pathname.startsWith('/api/video')) return NextResponse.next()
 
   const token = req.cookies.get(COOKIE_NAME)?.value
   const valid = await isValid(token)

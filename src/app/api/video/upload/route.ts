@@ -1,15 +1,30 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
+import { jwtVerify } from 'jose'
 import busboy from 'busboy'
 import prisma from '@/lib/db'
 import { pastikanVideoDir, MAX_UPLOAD_BYTES, TIPE_VIDEO_DIIZINKAN } from '@/lib/video-storage'
 import { prosesVideo } from '@/lib/video-processing'
 
 export const runtime = 'nodejs'
+
+// Auth manual — route ini di-skip middleware agar upload file besar tidak
+// melewati Edge runtime yang punya batas body kecil.
+async function cekAuth(req: NextRequest): Promise<boolean> {
+  const token = req.cookies.get('zadv_session')?.value
+  const secret = process.env.JWT_SECRET
+  if (!token || !secret) return false
+  try {
+    await jwtVerify(token, new TextEncoder().encode(secret))
+    return true
+  } catch {
+    return false
+  }
+}
 
 async function prosesDiBackground(
   jobId: number,
@@ -91,7 +106,8 @@ function parseMultipart(req: Request): Promise<ParsedForm> {
   })
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  if (!await cekAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
     const { fields, file } = await parseMultipart(req)
 
