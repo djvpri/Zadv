@@ -47,12 +47,17 @@ async function getDurasi(filePath: string): Promise<number> {
       '-of', 'default=noprint_wrappers=1:nokey=1', filePath,
     ])
     let out = ''
+    let errOut = ''
     proc.stdout.on('data', (d) => { out += d.toString() })
-    proc.on('error', reject)
+    proc.stderr.on('data', (d) => { errOut += d.toString() })
+    proc.on('error', (e) => reject(new Error(`ffprobe tidak bisa dijalankan: ${e.message}`)))
     proc.on('close', (code) => {
       const detik = parseFloat(out.trim())
       if (code === 0 && !isNaN(detik)) resolve(detik)
-      else reject(new Error('Gagal membaca durasi video (ffprobe)'))
+      else {
+        const detail = errOut.trim().slice(-300) || out.trim() || `exit code ${code}`
+        reject(new Error(`Gagal membaca durasi video: ${detail}`))
+      }
     })
   })
 }
