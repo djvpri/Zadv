@@ -3,6 +3,7 @@ import path from 'path'
 import { randomUUID } from 'crypto'
 import { createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
+import { Readable } from 'stream'
 import busboy from 'busboy'
 import prisma from '@/lib/db'
 import { pastikanVideoDir, MAX_UPLOAD_BYTES, TIPE_VIDEO_DIIZINKAN } from '@/lib/video-storage'
@@ -49,6 +50,8 @@ interface ParsedForm {
 
 function parseMultipart(req: Request): Promise<ParsedForm> {
   return new Promise((resolve, reject) => {
+    if (!req.body) { reject(new Error('Request body kosong')); return }
+
     const contentType = req.headers.get('content-type') || ''
     const bb = busboy({ headers: { 'content-type': contentType }, limits: { fileSize: MAX_UPLOAD_BYTES } })
 
@@ -58,23 +61,19 @@ function parseMultipart(req: Request): Promise<ParsedForm> {
 
     bb.on('field', (name: string, val: string) => { fields[name] = val })
 
-    bb.on('file', (fieldname: string, stream: NodeJS.ReadableStream, info: { filename: string; mimeType: string }) => {
-      const fileMimetype = info.mimeType
-      const fileName = info.filename
-      let fileSizeTotal = 0
-
+    bb.on('file', (_field: string, stream: NodeJS.ReadableStream, info: { filename: string; mimeType: string }) => {
+      let size = 0
       const p = (async () => {
         const dir = await pastikanVideoDir()
-        const ext = path.extname(fileName) || '.mp4'
+        const ext = path.extname(info.filename) || '.mp4'
         const tempPath = path.join(dir, `input-${randomUUID()}${ext}`)
         const ws = createWriteStream(tempPath)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ;(stream as any).on('data', (chunk: Buffer) => { fileSizeTotal += chunk.length })
+        ;(stream as any).on('data', (chunk: Buffer) => { size += chunk.length })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await pipeline(stream as any, ws)
-        fileResult = { path: tempPath, mimetype: fileMimetype, size: fileSizeTotal, name: fileName }
+        fileResult = { path: tempPath, mimetype: info.mimeType, size, name: info.filename }
       })()
-
       filePromises.push(p)
       p.catch(reject)
     })
@@ -85,20 +84,10 @@ function parseMultipart(req: Request): Promise<ParsedForm> {
 
     bb.on('error', (err: Error) => reject(err))
 
-    // Pipe Web ReadableStream → busboy Writable
-    const reader = req.body!.getReader()
-    ;(async () => {
-      try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) { bb.end(); break }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ;(bb as any).write(value)
-        }
-      } catch (err) {
-        reject(err)
-      }
-    })()
+    // Pipe Web ReadableStream → Node.js Readable → busboy
+    const nodeStream = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0])
+    nodeStream.on('error', reject)
+    nodeStream.pipe(bb)
   })
 }
 
