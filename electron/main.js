@@ -270,6 +270,15 @@ ipcMain.handle('test-db', async (_, dbUrl) => {
 
 // ──────────────────────────── Startup ────────────────────────────
 
+// Pastikan hanya satu instance yang berjalan
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+}
+app.on('second-instance', () => {
+  if (mainWindow) { mainWindow.show(); mainWindow.focus() }
+})
+
 app.whenReady().then(async () => {
   buildMenu()
 
