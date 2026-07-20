@@ -74,6 +74,7 @@ export default function VideoPage() {
   const [genLoading, setGenLoading] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadInfo, setUploadInfo] = useState('')
   const [job, setJob] = useState<StatusJob | null>(null)
   const [error, setError] = useState('')
   const [deskripsi, setDeskripsi] = useState('')
@@ -147,44 +148,71 @@ export default function VideoPage() {
   async function upload() {
     if (!file || !appId || !script.trim()) return
     setUploading(true)
+    setUploadInfo('')
     setError('')
     setJob(null)
-    try {
-      // Kirim file sebagai raw binary body, metadata lewat header JSON
-      // (lebih andal dari URL params — tidak ada batas panjang, tidak terpengaruh cache proxy)
-      const metadata: Record<string, unknown> = {
-        appId,
-        script,
-        fileSize: file.size,
-        style_ukuran: styleUkuran,
-        style_posisi: stylePosisi,
-        style_latar: styleLatar,
-        style_warna: styleWarna,
-        filename: file.name,
-        type: file.type || 'video/mp4',
-      }
-      if (musicTrackId) metadata.musicTrackId = musicTrackId
-      if (muteAsli) metadata.muteAsli = true
-      if (fadeOut) metadata.fadeOut = true
-      if (!loopMusik) metadata.noLoop = true
-      if (mulaiDetik > 0) metadata.mulaiDetik = mulaiDetik
 
-      const res = await fetch(`/api/video/upload`, {
-        method: 'POST',
-        body: file,
-        headers: {
-          'content-type': file.type || 'video/mp4',
-          'x-video-metadata': JSON.stringify(metadata),
-        },
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Gagal upload')
-      setJob({ id: data.id, status: 'pending', siap: false })
-      mulaiPolling(data.id)
+    const metadata: Record<string, unknown> = {
+      appId, script, fileSize: file.size,
+      style_ukuran: styleUkuran, style_posisi: stylePosisi,
+      style_latar: styleLatar, style_warna: styleWarna,
+      filename: file.name, type: file.type || 'video/mp4',
+    }
+    if (musicTrackId) metadata.musicTrackId = musicTrackId
+    if (muteAsli) metadata.muteAsli = true
+    if (fadeOut) metadata.fadeOut = true
+    if (!loopMusik) metadata.noLoop = true
+    if (mulaiDetik > 0) metadata.mulaiDetik = mulaiDetik
+    const metaHeader = JSON.stringify(metadata)
+
+    // Proxy Railway memotong body >~10MB — pakai chunked upload untuk file besar
+    const CHUNK_SIZE = 4 * 1024 * 1024 // 4MB per chunk
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+
+    try {
+      if (totalChunks <= 1) {
+        // File kecil: single request
+        setUploadInfo('')
+        const res = await fetch('/api/video/upload', {
+          method: 'POST', body: file,
+          headers: { 'content-type': file.type || 'video/mp4', 'x-video-metadata': metaHeader },
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Gagal upload')
+        setJob({ id: data.id, status: 'pending', siap: false })
+        mulaiPolling(data.id)
+      } else {
+        // File besar: chunked upload
+        const uploadId = crypto.randomUUID()
+        for (let i = 0; i < totalChunks; i++) {
+          setUploadInfo(`Mengunggah bagian ${i + 1} dari ${totalChunks}...`)
+          const start = i * CHUNK_SIZE
+          const end = Math.min(start + CHUNK_SIZE, file.size)
+          const chunk = file.slice(start, end)
+          const res = await fetch('/api/video/upload', {
+            method: 'POST', body: chunk,
+            headers: {
+              'content-type': 'application/octet-stream',
+              'x-video-metadata': metaHeader,
+              'x-upload-id': uploadId,
+              'x-chunk-index': String(i),
+              'x-total-chunks': String(totalChunks),
+            },
+          })
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.error || `Gagal upload bagian ${i + 1}`)
+          if (data.id) {
+            setJob({ id: data.id, status: 'pending', siap: false })
+            mulaiPolling(data.id)
+          }
+        }
+        setUploadInfo('')
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal upload video')
     } finally {
       setUploading(false)
+      setUploadInfo('')
     }
   }
 
@@ -420,7 +448,7 @@ export default function VideoPage() {
           disabled={uploading || !file || !appId || !script.trim()}
           className="py-2.5 rounded-md bg-[#D8A23D] text-[#1C1917] text-[13px] font-semibold hover:bg-[#E3B458] disabled:opacity-50 transition-colors"
         >
-          {uploading ? 'Mengunggah...' : '🎬 Proses Video'}
+          {uploadInfo || (uploading ? 'Mengunggah...' : '🎬 Proses Video')}
         </button>
         {error && <p className="text-[11px] text-red-400">{error}</p>}
       </div>
