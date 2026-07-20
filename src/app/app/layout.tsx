@@ -7,6 +7,7 @@ const NAV = [
   { href: '/app/video', label: 'Video' },
   { href: '/app/artikel', label: 'Artikel' },
   { href: '/app/musik', label: '🎵 Musik' },
+  { href: '/app/wa-massal', label: 'WA Massal' },
   { href: '/app/riwayat', label: 'Riwayat' },
   { href: '/app/kelola', label: 'Kelola App' },
 ]
