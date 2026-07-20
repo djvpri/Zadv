@@ -150,10 +150,10 @@ export default function VideoPage() {
     setError('')
     setJob(null)
     try {
-      // Kirim file sebagai raw binary body, metadata lewat query params
-      // (sama seperti /api/music — bypass multipart parsing yang sering terpotong)
-      const params = new URLSearchParams({
-        appId: String(appId),
+      // Kirim file sebagai raw binary body, metadata lewat header JSON
+      // (lebih andal dari URL params — tidak ada batas panjang, tidak terpengaruh cache proxy)
+      const metadata: Record<string, unknown> = {
+        appId,
         script,
         style_ukuran: styleUkuran,
         style_posisi: stylePosisi,
@@ -161,17 +161,20 @@ export default function VideoPage() {
         style_warna: styleWarna,
         filename: file.name,
         type: file.type || 'video/mp4',
-      })
-      if (musicTrackId) params.set('musicTrackId', String(musicTrackId))
-      if (muteAsli) params.set('muteAsli', '1')
-      if (fadeOut) params.set('fadeOut', '1')
-      if (!loopMusik) params.set('noLoop', '1')
-      if (mulaiDetik > 0) params.set('mulaiDetik', String(mulaiDetik))
+      }
+      if (musicTrackId) metadata.musicTrackId = musicTrackId
+      if (muteAsli) metadata.muteAsli = true
+      if (fadeOut) metadata.fadeOut = true
+      if (!loopMusik) metadata.noLoop = true
+      if (mulaiDetik > 0) metadata.mulaiDetik = mulaiDetik
 
-      const res = await fetch(`/api/video/upload?${params}`, {
+      const res = await fetch(`/api/video/upload`, {
         method: 'POST',
         body: file,
-        headers: { 'content-type': file.type || 'video/mp4' },
+        headers: {
+          'content-type': file.type || 'video/mp4',
+          'x-video-metadata': JSON.stringify(metadata),
+        },
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Gagal upload')

@@ -58,8 +58,10 @@ async function prosesDiBackground(
   }
 }
 
-// POST — file video dikirim sebagai raw binary body (bukan multipart),
-// metadata dikirim via query params. Sama seperti /api/music/route.ts.
+// POST — file video dikirim sebagai raw binary body (bukan multipart).
+// Metadata dikirim via header X-Video-Metadata (JSON) — lebih andal dari URL params
+// karena tidak ada batas panjang URL dan tidak terpengaruh cache proxy.
+// URL params tetap diterima sebagai fallback.
 export async function POST(req: NextRequest) {
   if (!await cekAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
@@ -67,14 +69,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Body kosong — file tidak terkirim' }, { status: 400 })
     }
 
-    const params = req.nextUrl.searchParams
-    const script = params.get('script') || ''
+    // Baca metadata: prioritaskan header JSON, fallback ke URL params
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let meta: Record<string, any> = {}
+    const metaHeader = req.headers.get('x-video-metadata')
+    if (metaHeader) {
+      try { meta = JSON.parse(metaHeader) } catch { /* pakai fallback */ }
+    }
+    const qp = req.nextUrl.searchParams
+    const g = (key: string, def = '') => (meta[key] != null ? String(meta[key]) : qp.get(key) ?? def)
+
+    const script = g('script')
     if (!script.trim()) {
       return NextResponse.json({ error: 'Script tidak boleh kosong' }, { status: 400 })
     }
 
-    const filename = params.get('filename') || 'video.mp4'
-    const mimeType  = params.get('type') || 'video/mp4'
+    const filename = g('filename', 'video.mp4')
+    const mimeType = g('type', 'video/mp4')
 
     if (!TIPE_VIDEO_DIIZINKAN.includes(mimeType)) {
       return NextResponse.json(
@@ -105,13 +116,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const appIdStr = params.get('appId')
+    const appIdRaw = g('appId')
     let appId: number | null = null
-    if (appIdStr) { const n = Number(appIdStr); if (Number.isInteger(n)) appId = n }
+    if (appIdRaw) { const n = Number(appIdRaw); if (Number.isInteger(n)) appId = n }
 
     let musicTrackId: number | null = null
     let musicPath: string | null = null
-    const mtStr = params.get('musicTrackId')
+    const mtStr = g('musicTrackId')
     if (mtStr) {
       const n = Number(mtStr)
       if (Number.isInteger(n) && n > 0) {
@@ -124,16 +135,19 @@ export async function POST(req: NextRequest) {
       data: { appId, caption: script, inputPath: tempPath, status: 'pending', musicTrackId },
     })
 
+    const boolMeta = (key: string, trueVal = '1') =>
+      meta[key] != null ? !!meta[key] : qp.get(key) === trueVal
+
     prosesDiBackground(
       job.id, tempPath, script, dir, musicPath,
-      params.get('muteAsli') === '1',
-      params.get('fadeOut') === '1',
-      params.get('noLoop') !== '1',
-      params.get('mulaiDetik') ? Number(params.get('mulaiDetik')) : 0,
-      params.get('style_ukuran') || 'sedang',
-      params.get('style_posisi') || 'bawah',
-      params.get('style_latar') || 'samar',
-      params.get('style_warna') || 'putih',
+      boolMeta('muteAsli'),
+      boolMeta('fadeOut'),
+      meta['noLoop'] != null ? !meta['noLoop'] : qp.get('noLoop') !== '1',
+      g('mulaiDetik') ? Number(g('mulaiDetik')) : 0,
+      g('style_ukuran', 'sedang'),
+      g('style_posisi', 'bawah'),
+      g('style_latar', 'samar'),
+      g('style_warna', 'putih'),
     ).catch(e => console.error('prosesDiBackground gagal:', e))
 
     return NextResponse.json({ id: job.id, status: job.status })
