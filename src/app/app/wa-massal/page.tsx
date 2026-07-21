@@ -7,7 +7,7 @@ interface LogEntry {
   pesan?: string
 }
 interface WaGrup { id: number; nama: string; nomor: string[] }
-interface WaTemplate { id: number; judul: string; teks: string }
+interface WaTemplate { id: number; judul: string; teks: string; mediaUrl?: string | null; mediaFilename?: string | null; mediaMime?: string | null }
 interface WaKontak { id: number; nama: string; nomor: string[]; grup: string | null }
 interface WaRiwayat { id: number; nomor: string; pesan: string; mediaUrl: string | null; status: string; alasan: string | null; sentAt: string }
 
@@ -187,7 +187,13 @@ export default function WAMassal() {
     setSimpanTemplateLoading(true)
     await fetch('/api/wa-massal/template', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ judul: namaTemplate.trim(), teks: pesan }),
+      body: JSON.stringify({
+        judul: namaTemplate.trim(),
+        teks: pesan,
+        mediaUrl: mediaUrl || null,
+        mediaFilename: mediaFilename || null,
+        mediaMime: mediaMime || null,
+      }),
     })
     setNamaTemplate(''); setShowSimpanTemplate(false); setSimpanTemplateLoading(false)
     muatData()
@@ -195,6 +201,24 @@ export default function WAMassal() {
 
   async function hapusTemplate(id: number) {
     await fetch(`/api/wa-massal/template/${id}`, { method: 'DELETE' }); muatData()
+  }
+
+  function muatTemplate(t: WaTemplate) {
+    setPesan(t.teks)
+    if (t.mediaUrl) {
+      const isInternal = t.mediaUrl.includes('/api/wa-massal/media/')
+      setMediaMode(isInternal ? 'upload' : 'url')
+      setMediaUrl(t.mediaUrl)
+      setMediaFilename(t.mediaFilename || '')
+      setMediaMime(t.mediaMime || '')
+      setMediaUploadedFile('') // file milik template, jangan auto-delete saat reset
+    } else {
+      setMediaMode('none')
+      setMediaUrl('')
+      setMediaFilename('')
+      setMediaMime('')
+      setMediaUploadedFile('')
+    }
   }
 
   async function tambahKontak() {
@@ -984,9 +1008,16 @@ export default function WAMassal() {
                 {templates.length === 0 && <p className="text-[11.5px] text-[#4A453D] text-center py-4">Belum ada template tersimpan</p>}
                 {templates.map(t => (
                   <div key={t.id} className="flex items-center gap-2 group">
-                    <button onClick={() => setPesan(t.teks)}
+                    <button onClick={() => muatTemplate(t)}
                       className="flex-1 text-left px-3 py-2 rounded bg-white/[0.04] hover:bg-white/[0.08] transition-colors border border-white/[0.06]">
-                      <div className="text-[12px] text-[#E7E2DC] truncate">{t.judul}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[12px] text-[#E7E2DC] truncate">{t.judul}</span>
+                        {t.mediaUrl && (
+                          <span className="shrink-0 text-[10px] text-[#D8A23D]">
+                            {t.mediaMime?.startsWith('image/') ? '🖼' : t.mediaMime === 'application/pdf' ? '📄' : t.mediaMime?.startsWith('video/') ? '🎬' : '📎'}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10.5px] text-[#8A8378] truncate mt-0.5">{t.teks.slice(0, 50)}{t.teks.length > 50 ? '...' : ''}</div>
                     </button>
                     <button onClick={() => hapusTemplate(t.id)}

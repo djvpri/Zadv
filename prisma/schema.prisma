@@ -66,11 +66,14 @@ model WaGrupKontak {
 }
 
 model WaTemplate {
-  id        Int      @id @default(autoincrement())
-  judul     String
-  teks      String   @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  judul         String
+  teks          String   @db.Text
+  mediaUrl      String?
+  mediaFilename String?
+  mediaMime     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model WaKontak {
