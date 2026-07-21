@@ -626,7 +626,7 @@ export default function WAMassal() {
   const grupLabels = Array.from(new Set(kontaks.map(k => k.grup).filter(Boolean))) as string[]
   const cariDigit = cariKontak.replace(/\D/g, '')
   const kontakFiltered = kontaks
-    .filter(k => !filterGrup || k.grup === filterGrup)
+    .filter(k => !filterGrup || (filterGrup === '__tanpa_grup__' ? !k.grup : k.grup === filterGrup))
     .filter(k => !cariKontak.trim() || k.nama.toLowerCase().includes(cariKontak.trim().toLowerCase()) || (cariDigit.length > 0 && k.nomor.some(n => n.includes(cariDigit))))
 
   const IconX = () => (
@@ -1063,6 +1063,7 @@ export default function WAMassal() {
                       className="flex-1 text-[11px] bg-[#161311] border border-white/15 rounded px-2 py-1.5 text-[#B3ACA1] outline-none cursor-pointer hover:border-white/30">
                       <option value="">Semua grup</option>
                       {grupLabels.map(g => <option key={g} value={g}>{g}</option>)}
+                      {kontaks.some(k => !k.grup) && <option value="__tanpa_grup__">— Tanpa grup</option>}
                     </select>
                     {checked.size > 0 && (
                       <button onClick={tambahKeTujuan}
