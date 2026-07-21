@@ -1536,6 +1536,56 @@ export default function WAMassal() {
                   </div>
                 )}
 
+                {/* Kontak tanpa grup */}
+                {(() => {
+                  const tanpaGrup = kontaks.filter(k => !k.grup)
+                  if (tanpaGrup.length === 0) return null
+                  const sedangKelola = kelolaGrupLabel === '__tanpa_grup__'
+                  return (
+                    <div className="flex flex-col gap-1.5">
+                      {grupLabels.length > 0 && <div className="border-t border-white/[0.06]" />}
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 flex items-center justify-between px-3 py-2 rounded bg-white/[0.03] border border-dashed border-white/[0.08]">
+                          <span className="text-[12px] text-[#8A8378] italic">Tanpa grup</span>
+                          <span className="text-[10.5px] text-[#4A453D] ml-2 shrink-0">{tanpaGrup.length} kontak</span>
+                        </div>
+                        <button onClick={() => setKelolaGrupLabel(sedangKelola ? null : '__tanpa_grup__')}
+                          className={`px-2.5 py-2 rounded text-[11px] font-medium transition-colors whitespace-nowrap ${sedangKelola ? 'bg-[#D8A23D]/20 text-[#D8A23D]' : 'bg-white/[0.06] text-[#8A8378] hover:text-white'}`}>
+                          Kelola
+                        </button>
+                      </div>
+                      {sedangKelola && (
+                        <div className="flex flex-col gap-1.5 ml-2 pl-3 border-l-2 border-white/10">
+                          <p className="text-[10px] font-semibold tracking-[0.1em] text-[#4A453D]">ASSIGN KE GRUP</p>
+                          <div className="max-h-48 overflow-y-auto flex flex-col gap-1">
+                            {tanpaGrup.map(k => (
+                              <div key={k.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-white/[0.03] border border-white/[0.06]">
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-[11.5px] text-[#E7E2DC] truncate">{k.nama}</span>
+                                  <span className="text-[10px] text-[#8A8378] ml-1.5 font-mono">·{k.nomor[0]}</span>
+                                </div>
+                                <select defaultValue="" onChange={async e => {
+                                  const grup = e.target.value
+                                  if (!grup) return
+                                  await fetch(`/api/wa-massal/kontak/${k.id}`, {
+                                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ nama: k.nama, nomor: k.nomor, grup }),
+                                  })
+                                  await muatData()
+                                  e.target.value = ''
+                                }} className="text-[10.5px] bg-[#161311] border border-white/15 rounded px-1.5 py-0.5 text-[#B3ACA1] outline-none cursor-pointer hover:border-[#D8A23D]/40 max-w-[110px]">
+                                  <option value="" disabled>Pilih grup...</option>
+                                  {grupLabels.map(g => <option key={g} value={g}>{g}</option>)}
+                                </select>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 {/* Grup Tersimpan (WaGrupKontak) */}
                 <div className="flex flex-col gap-1.5">
                   {grupLabels.length > 0 && (
