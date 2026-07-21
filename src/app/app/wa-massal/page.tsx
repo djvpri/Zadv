@@ -70,11 +70,27 @@ function MediaPreview({ mime, filename, url }: { mime: string; filename: string;
 }
 
 const DELAY_OPTS = [
-  { val: 3, label: '3 detik' },
-  { val: 5, label: '5 detik' },
-  { val: 8, label: '8 detik' },
-  { val: 12, label: '12 detik' },
+  { val: 3, label: '3 dtk' },
+  { val: 5, label: '5 dtk' },
+  { val: 8, label: '8 dtk' },
+  { val: 12, label: '12 dtk' },
+  { val: 3600, label: '1 jam' },
+  { val: 7200, label: '2 jam' },
+  { val: 10800, label: '3 jam' },
 ]
+
+function formatDelay(detik: number): string {
+  if (detik < 60) return `${detik} detik`
+  if (detik < 3600) return `${Math.round(detik / 60)} menit`
+  return `${detik / 3600} jam`
+}
+
+function formatDurasi(totalDetik: number): string {
+  if (totalDetik < 60) return `~${totalDetik} detik`
+  if (totalDetik < 3600) return `~${Math.ceil(totalDetik / 60)} menit`
+  const jam = totalDetik / 3600
+  return `~${Number.isInteger(jam) ? jam : jam.toFixed(1)} jam`
+}
 
 export default function WAMassal() {
   const [token, setToken] = useState('')
@@ -678,7 +694,7 @@ export default function WAMassal() {
         {/* Delay & kirim */}
         <div className="rounded-lg bg-white/[0.03] border border-white/10 p-5">
           <p className="text-[10px] font-semibold tracking-[0.15em] text-[#8A8378] mb-3">JEDA ANTAR PESAN</p>
-          <div className="flex gap-1.5 mb-4">
+          <div className="flex flex-wrap gap-1.5 mb-4">
             {DELAY_OPTS.map(d => (
               <button key={d.val} onClick={() => setDelay(d.val)}
                 className={`px-3 py-1.5 rounded-md text-[12px] border transition-colors ${delay === d.val ? 'bg-[#D8A23D] text-[#1C1917] border-[#D8A23D] font-medium' : 'border-white/15 text-[#B3ACA1] hover:border-white/30'}`}>
@@ -711,10 +727,10 @@ export default function WAMassal() {
             <p className="text-[10px] font-semibold tracking-[0.15em] text-[#8A8378] mb-2">ESTIMASI</p>
             <div className="flex flex-col gap-1.5">
               <div className="flex justify-between text-[12px]"><span className="text-[#8A8378]">Jumlah nomor</span><span className="font-medium">{daftar.length}</span></div>
-              <div className="flex justify-between text-[12px]"><span className="text-[#8A8378]">Jeda</span><span className="font-medium">{delay} detik/pesan</span></div>
+              <div className="flex justify-between text-[12px]"><span className="text-[#8A8378]">Jeda</span><span className="font-medium">{formatDelay(delay)}/pesan</span></div>
               <div className="flex justify-between text-[12px] border-t border-white/10 pt-1.5 mt-0.5">
                 <span className="text-[#8A8378]">Total waktu</span>
-                <span className="font-medium text-[#D8A23D]">~{Math.ceil((daftar.length * delay) / 60)} menit</span>
+                <span className="font-medium text-[#D8A23D]">{formatDurasi(daftar.length * delay)}</span>
               </div>
             </div>
           </div>
