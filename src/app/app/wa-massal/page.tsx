@@ -1,10 +1,24 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 interface LogEntry {
   nomor: string
   status: 'mengirim' | 'terkirim' | 'gagal'
   pesan?: string
+}
+
+interface WaGrup {
+  id: number
+  nama: string
+  nomor: string[]
+  createdAt: string
+}
+
+interface WaTemplate {
+  id: number
+  judul: string
+  teks: string
+  createdAt: string
 }
 
 function normalisiNomor(raw: string): string {
@@ -43,10 +57,30 @@ export default function WAMassal() {
   const batalRef = useRef(false)
   const logEndRef = useRef<HTMLDivElement>(null)
 
+  // Grup & Template state
+  const [grups, setGrups] = useState<WaGrup[]>([])
+  const [templates, setTemplates] = useState<WaTemplate[]>([])
+  const [namaGrup, setNamaGrup] = useState('')
+  const [namaTemplate, setNamaTemplate] = useState('')
+  const [showSimpanGrup, setShowSimpanGrup] = useState(false)
+  const [showSimpanTemplate, setShowSimpanTemplate] = useState(false)
+  const [simpanGrupLoading, setSimpanGrupLoading] = useState(false)
+  const [simpanTemplateLoading, setSimpanTemplateLoading] = useState(false)
+
+  const muatData = useCallback(async () => {
+    const [g, t] = await Promise.all([
+      fetch('/api/wa-massal/grup').then(r => r.json()),
+      fetch('/api/wa-massal/template').then(r => r.json()),
+    ])
+    setGrups(Array.isArray(g) ? g : [])
+    setTemplates(Array.isArray(t) ? t : [])
+  }, [])
+
   useEffect(() => {
     const saved = localStorage.getItem('zadv_fonnte_token')
     if (saved) { setToken(saved); setTokenSimpan(true) }
-  }, [])
+    muatData()
+  }, [muatData])
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -59,6 +93,45 @@ export default function WAMassal() {
 
   function updateLog(nomor: string, patch: Partial<LogEntry>) {
     setLog(prev => prev.map(l => l.nomor === nomor ? { ...l, ...patch } : l))
+  }
+
+  async function simpanGrup() {
+    const daftar = parseNomor(nomorRaw)
+    if (!namaGrup.trim() || daftar.length === 0) return
+    setSimpanGrupLoading(true)
+    await fetch('/api/wa-massal/grup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nama: namaGrup.trim(), nomor: daftar }),
+    })
+    setNamaGrup('')
+    setShowSimpanGrup(false)
+    setSimpanGrupLoading(false)
+    muatData()
+  }
+
+  async function hapusGrup(id: number) {
+    await fetch(`/api/wa-massal/grup/${id}`, { method: 'DELETE' })
+    muatData()
+  }
+
+  async function simpanTemplate() {
+    if (!namaTemplate.trim() || !pesan.trim()) return
+    setSimpanTemplateLoading(true)
+    await fetch('/api/wa-massal/template', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ judul: namaTemplate.trim(), teks: pesan }),
+    })
+    setNamaTemplate('')
+    setShowSimpanTemplate(false)
+    setSimpanTemplateLoading(false)
+    muatData()
+  }
+
+  async function hapusTemplate(id: number) {
+    await fetch(`/api/wa-massal/template/${id}`, { method: 'DELETE' })
+    muatData()
   }
 
   async function kirim() {
@@ -160,9 +233,27 @@ export default function WAMassal() {
         <div className="rounded-lg bg-white/[0.03] border border-white/10 p-5">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-semibold tracking-[0.15em] text-[#8A8378]">NOMOR TUJUAN</p>
-            {daftar.length > 0 && (
-              <span className="text-[10.5px] text-[#D8A23D] font-medium">{daftar.length} nomor terdeteksi</span>
-            )}
+            <div className="flex items-center gap-2">
+              {daftar.length > 0 && (
+                <span className="text-[10.5px] text-[#D8A23D] font-medium">{daftar.length} nomor</span>
+              )}
+              {grups.length > 0 && (
+                <select
+                  onChange={e => {
+                    const g = grups.find(x => x.id === parseInt(e.target.value))
+                    if (g) setNomorRaw(g.nomor.map(n => n.startsWith('62') ? '0' + n.slice(2) : n).join('\n'))
+                    e.target.value = ''
+                  }}
+                  defaultValue=""
+                  className="text-[11px] bg-[#161311] border border-white/15 rounded px-2 py-1 text-[#B3ACA1] outline-none cursor-pointer hover:border-white/30"
+                >
+                  <option value="" disabled>Muat grup...</option>
+                  {grups.map(g => (
+                    <option key={g.id} value={g.id}>{g.nama} ({g.nomor.length})</option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
           <textarea
             value={nomorRaw}
@@ -183,23 +274,115 @@ export default function WAMassal() {
               )}
             </div>
           )}
+          {daftar.length > 0 && (
+            <div className="mt-3 border-t border-white/[0.06] pt-3">
+              {!showSimpanGrup ? (
+                <button
+                  onClick={() => setShowSimpanGrup(true)}
+                  className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors"
+                >
+                  + Simpan sebagai grup kontak
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={namaGrup}
+                    onChange={e => setNamaGrup(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && simpanGrup()}
+                    placeholder="Nama grup..."
+                    className="flex-1 bg-[#161311] border border-white/15 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50"
+                  />
+                  <button
+                    onClick={simpanGrup}
+                    disabled={simpanGrupLoading || !namaGrup.trim()}
+                    className="px-3 py-1.5 rounded bg-[#D8A23D] text-[#1C1917] text-[12px] font-medium hover:bg-[#C89230] disabled:opacity-50 transition-colors"
+                  >
+                    Simpan
+                  </button>
+                  <button
+                    onClick={() => { setShowSimpanGrup(false); setNamaGrup('') }}
+                    className="px-2 py-1.5 rounded border border-white/15 text-[12px] text-[#8A8378] hover:text-white transition-colors"
+                  >
+                    Batal
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Pesan */}
         <div className="rounded-lg bg-white/[0.03] border border-white/10 p-5">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-semibold tracking-[0.15em] text-[#8A8378]">PESAN</p>
-            <span className={`text-[10.5px] ${pesan.length > 4000 ? 'text-red-400' : 'text-[#8A8378]'}`}>
-              {pesan.length} karakter
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`text-[10.5px] ${pesan.length > 4000 ? 'text-red-400' : 'text-[#8A8378]'}`}>
+                {pesan.length} karakter
+              </span>
+              {templates.length > 0 && (
+                <select
+                  onChange={e => {
+                    const t = templates.find(x => x.id === parseInt(e.target.value))
+                    if (t) setPesan(t.teks)
+                    e.target.value = ''
+                  }}
+                  defaultValue=""
+                  className="text-[11px] bg-[#161311] border border-white/15 rounded px-2 py-1 text-[#B3ACA1] outline-none cursor-pointer hover:border-white/30"
+                >
+                  <option value="" disabled>Muat template...</option>
+                  {templates.map(t => (
+                    <option key={t.id} value={t.id}>{t.judul}</option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
           <textarea
             value={pesan}
             onChange={e => setPesan(e.target.value)}
             rows={8}
-            placeholder="Tulis pesan promosi di sini...&#10;&#10;Atau generate dulu di tab Z Adv, lalu salin ke sini."
+            placeholder={"Tulis pesan promosi di sini...\n\nAtau generate dulu di tab Z Adv, lalu salin ke sini."}
             className="w-full bg-[#161311] border border-white/15 rounded-md px-3 py-2.5 text-[13px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50 resize-none leading-relaxed"
           />
+          {pesan.trim() && (
+            <div className="mt-3 border-t border-white/[0.06] pt-3">
+              {!showSimpanTemplate ? (
+                <button
+                  onClick={() => setShowSimpanTemplate(true)}
+                  className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors"
+                >
+                  + Simpan sebagai template pesan
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={namaTemplate}
+                    onChange={e => setNamaTemplate(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && simpanTemplate()}
+                    placeholder="Judul template..."
+                    className="flex-1 bg-[#161311] border border-white/15 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50"
+                  />
+                  <button
+                    onClick={simpanTemplate}
+                    disabled={simpanTemplateLoading || !namaTemplate.trim()}
+                    className="px-3 py-1.5 rounded bg-[#D8A23D] text-[#1C1917] text-[12px] font-medium hover:bg-[#C89230] disabled:opacity-50 transition-colors"
+                  >
+                    Simpan
+                  </button>
+                  <button
+                    onClick={() => { setShowSimpanTemplate(false); setNamaTemplate('') }}
+                    className="px-2 py-1.5 rounded border border-white/15 text-[12px] text-[#8A8378] hover:text-white transition-colors"
+                  >
+                    Batal
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Delay & tombol kirim */}
@@ -243,7 +426,7 @@ export default function WAMassal() {
         </div>
       </div>
 
-      {/* Kolom kanan — log */}
+      {/* Kolom kanan */}
       <div className="flex flex-col gap-4">
 
         {/* Estimasi waktu */}
@@ -285,7 +468,6 @@ export default function WAMassal() {
               )}
             </div>
 
-            {/* Bar progress */}
             <div className="h-1.5 bg-white/10 rounded-full mb-3 overflow-hidden">
               <div
                 className="h-full rounded-full bg-[#25D366] transition-all duration-500"
@@ -299,8 +481,7 @@ export default function WAMassal() {
               {mengirim > 0 && <span className="text-[#8A8378]">{mengirim} menunggu</span>}
             </div>
 
-            {/* List log */}
-            <div className="flex flex-col gap-1 max-h-96 overflow-y-auto">
+            <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
               {log.map((l, i) => (
                 <div key={i} className="flex items-start gap-2 py-1.5 border-b border-white/[0.05] last:border-0">
                   <div className="shrink-0 mt-0.5">
@@ -331,15 +512,71 @@ export default function WAMassal() {
           </div>
         )}
 
+        {/* Grup tersimpan */}
+        {grups.length > 0 && (
+          <div className="rounded-lg bg-white/[0.02] border border-white/[0.07] p-4">
+            <p className="text-[10px] font-semibold tracking-[0.15em] text-[#8A8378] mb-3">GRUP KONTAK</p>
+            <div className="flex flex-col gap-1.5">
+              {grups.map(g => (
+                <div key={g.id} className="flex items-center gap-2 group">
+                  <button
+                    onClick={() => setNomorRaw(g.nomor.map(n => n.startsWith('62') ? '0' + n.slice(2) : n).join('\n'))}
+                    className="flex-1 text-left flex items-center justify-between px-3 py-2 rounded bg-white/[0.04] hover:bg-white/[0.08] transition-colors border border-white/[0.06]"
+                  >
+                    <span className="text-[12px] text-[#E7E2DC] truncate">{g.nama}</span>
+                    <span className="text-[10.5px] text-[#8A8378] ml-2 shrink-0">{g.nomor.length} nomor</span>
+                  </button>
+                  <button
+                    onClick={() => hapusGrup(g.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-500/20 text-[#8A8378] hover:text-red-400 transition-all"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Template tersimpan */}
+        {templates.length > 0 && (
+          <div className="rounded-lg bg-white/[0.02] border border-white/[0.07] p-4">
+            <p className="text-[10px] font-semibold tracking-[0.15em] text-[#8A8378] mb-3">TEMPLATE PESAN</p>
+            <div className="flex flex-col gap-1.5">
+              {templates.map(t => (
+                <div key={t.id} className="flex items-center gap-2 group">
+                  <button
+                    onClick={() => setPesan(t.teks)}
+                    className="flex-1 text-left px-3 py-2 rounded bg-white/[0.04] hover:bg-white/[0.08] transition-colors border border-white/[0.06]"
+                  >
+                    <div className="text-[12px] text-[#E7E2DC] truncate">{t.judul}</div>
+                    <div className="text-[10.5px] text-[#8A8378] truncate mt-0.5">{t.teks.slice(0, 50)}{t.teks.length > 50 ? '...' : ''}</div>
+                  </button>
+                  <button
+                    onClick={() => hapusTemplate(t.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-500/20 text-[#8A8378] hover:text-red-400 transition-all"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Panduan */}
-        {!berjalan && !selesai && (
+        {!berjalan && !selesai && grups.length === 0 && templates.length === 0 && (
           <div className="rounded-lg bg-white/[0.02] border border-white/[0.07] p-4">
             <p className="text-[10px] font-semibold tracking-[0.15em] text-[#8A8378] mb-3">PANDUAN</p>
             <ol className="flex flex-col gap-2">
               {[
                 'Daftar di fonnte.com → salin API token',
-                'Masukkan nomor tujuan (08xx / 628xx)',
-                'Generate caption di tab Z Adv, lalu salin ke kolom pesan',
+                'Masukkan nomor tujuan, lalu simpan sebagai grup',
+                'Generate caption di tab Z Adv, lalu simpan sebagai template',
                 'Pilih jeda antar pesan (minimal 3 detik)',
                 'Klik Kirim dan pantau progress',
               ].map((s, i) => (
