@@ -6,11 +6,28 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { token: bodyToken, target, message, url: mediaUrl, filename } = await req.json()
+  const { token: bodyToken, target, message, url: mediaUrl, filename, cooldownHari } = await req.json()
   const token = bodyToken?.trim() || process.env.FONNTE_TOKEN
 
   if (!token || !target || !message) {
     return NextResponse.json({ error: 'token, target, dan message wajib diisi' }, { status: 400 })
+  }
+
+  // Ide 4: cek blacklist
+  const isBlacklisted = await prisma.waBlacklist.findUnique({ where: { nomor: target } }).catch(() => null)
+  if (isBlacklisted) return NextResponse.json({ ok: false, skip: true, reason: 'Nomor di blacklist' })
+
+  // Ide 1: cek cooldown
+  if (cooldownHari > 0) {
+    const cutoff = new Date(Date.now() - cooldownHari * 24 * 60 * 60 * 1000)
+    const recent = await prisma.waRiwayat.findFirst({
+      where: { nomor: target, status: 'terkirim', sentAt: { gte: cutoff } },
+      orderBy: { sentAt: 'desc' },
+    }).catch(() => null)
+    if (recent) {
+      const hariLalu = Math.floor((Date.now() - recent.sentAt.getTime()) / 86400000)
+      return NextResponse.json({ ok: false, skip: true, reason: `Dikirimi ${hariLalu} hari lalu` })
+    }
   }
 
   let ok = false

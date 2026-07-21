@@ -3,9 +3,10 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 
 interface LogEntry {
   nomor: string
-  status: 'mengirim' | 'terkirim' | 'gagal'
+  status: 'mengirim' | 'terkirim' | 'gagal' | 'dilewati'
   pesan?: string
 }
+interface WaBlacklistItem { nomor: string; alasan: string | null; createdAt: string }
 interface WaGrup { id: number; nama: string; nomor: string[] }
 interface WaTemplate { id: number; judul: string; teks: string; mediaUrl?: string | null; mediaFilename?: string | null; mediaMime?: string | null }
 interface WaKontak { id: number; nama: string; nomor: string[]; grup: string | null }
@@ -136,6 +137,11 @@ export default function WAMassal() {
   const [editGrup, setEditGrup] = useState('')
   const [editLoading, setEditLoading] = useState(false)
   const [activePanel, setActivePanel] = useState<'kontak' | 'grup' | 'template' | 'riwayat'>('kontak')
+  // Cooldown & blacklist
+  const [pakaiCooldown, setPakaiCooldown] = useState(true)
+  const [cooldownHari, setCooldownHari] = useState(14)
+  const [blacklist, setBlacklist] = useState<WaBlacklistItem[]>([])
+  const [showBlacklist, setShowBlacklist] = useState(false)
   // Bulk kontak
   const [assignGrupVal, setAssignGrupVal] = useState('')
   const [assignGrupBaru, setAssignGrupBaru] = useState('')
@@ -180,12 +186,14 @@ export default function WAMassal() {
   }, [])
 
   const muatData = useCallback(async () => {
-    const [g, t, k] = await Promise.all([
+    const [g, t, k, bl] = await Promise.all([
       fetch('/api/wa-massal/grup').then(r => r.json()),
       fetch('/api/wa-massal/template').then(r => r.json()),
       fetch('/api/wa-massal/kontak').then(r => r.json()),
+      fetch('/api/wa-massal/blacklist').then(r => r.json()),
     ])
     setGrups(Array.isArray(g) ? g : [])
+    setBlacklist(Array.isArray(bl) ? bl : [])
     setTemplates(Array.isArray(t) ? t : [])
     setKontaks(Array.isArray(k) ? k : [])
   }, [])
@@ -580,15 +588,20 @@ export default function WAMassal() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             token: token.trim(), target: nomor, message: pesanFinal,
+            cooldownHari: pakaiCooldown ? cooldownHari : 0,
             ...(lampiranUrl ? { url: lampiranUrl, filename: lampiranFilename } : {}),
           }),
         })
         const data = await res.json()
-        updateLog(nomor, { status: data.ok ? 'terkirim' : 'gagal', pesan: data.ok ? undefined : data.reason })
+        if (data.skip) {
+          updateLog(nomor, { status: 'dilewati', pesan: data.reason })
+        } else {
+          updateLog(nomor, { status: data.ok ? 'terkirim' : 'gagal', pesan: data.ok ? undefined : data.reason })
+          if (i < daftar.length - 1 && !batalRef.current) await new Promise(r => setTimeout(r, delay * 1000))
+        }
       } catch {
         updateLog(nomor, { status: 'gagal', pesan: 'Koneksi error' })
       }
-      if (i < daftar.length - 1 && !batalRef.current) await new Promise(r => setTimeout(r, delay * 1000))
     }
     setBerjalan(false); setSelesai(true)
     muatRiwayat()
@@ -599,7 +612,9 @@ export default function WAMassal() {
   const daftar = parseNomor(nomorRaw)
   const terkirim = log.filter(l => l.status === 'terkirim').length
   const gagal = log.filter(l => l.status === 'gagal').length
+  const dilewati = log.filter(l => l.status === 'dilewati').length
   const mengirim = log.filter(l => l.status === 'mengirim').length
+  const blSet = new Set(blacklist.map(b => b.nomor))
 
   const adaVariabel = /\{\{(nama|grup|nomor)\}\}/.test(pesan)
   const contohNomor = daftar[0] ?? ''
@@ -900,6 +915,24 @@ export default function WAMassal() {
               </button>
             ))}
           </div>
+          {/* Ide 2: Cooldown filter */}
+          <div className="flex flex-col gap-2 mb-4 p-3 rounded-lg bg-white/[0.03] border border-white/[0.08]">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input type="checkbox" checked={pakaiCooldown} onChange={e => setPakaiCooldown(e.target.checked)}
+                className="accent-[#D8A23D] w-3.5 h-3.5 cursor-pointer" />
+              <span className="text-[12px] text-[#B3ACA1]">Lewati nomor yang dikirimi dalam</span>
+              <select value={cooldownHari} onChange={e => setCooldownHari(Number(e.target.value))}
+                disabled={!pakaiCooldown}
+                className="bg-[#161311] border border-white/15 rounded px-2 py-0.5 text-[11.5px] text-[#E7E2DC] outline-none disabled:opacity-40 cursor-pointer">
+                {[3, 7, 14, 30, 60, 90].map(h => <option key={h} value={h}>{h} hari</option>)}
+              </select>
+              <span className="text-[12px] text-[#B3ACA1]">terakhir</span>
+            </label>
+            {blacklist.length > 0 && (
+              <p className="text-[11px] text-[#8A8378] pl-5">· {blacklist.length} nomor di blacklist akan selalu dilewati</p>
+            )}
+          </div>
+
           {!berjalan ? (
             <button onClick={kirim} disabled={(!token && !hasEnvToken) || daftar.length === 0 || !pesan.trim()}
               className="w-full py-3 rounded-md bg-[#25D366] text-white text-[13px] font-bold hover:bg-[#20BD5A] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
@@ -945,9 +978,10 @@ export default function WAMassal() {
             <div className="h-1.5 bg-white/10 rounded-full mb-3 overflow-hidden">
               <div className="h-full rounded-full bg-[#25D366] transition-all duration-500" style={{ width: `${log.length > 0 ? ((terkirim + gagal) / log.length) * 100 : 0}%` }} />
             </div>
-            <div className="flex gap-3 mb-3 text-[11.5px]">
+            <div className="flex gap-3 mb-3 text-[11.5px] flex-wrap">
               <span className="text-emerald-400">{terkirim} terkirim</span>
               {gagal > 0 && <span className="text-red-400">{gagal} gagal</span>}
+              {dilewati > 0 && <span className="text-orange-400">{dilewati} dilewati</span>}
               {mengirim > 0 && <span className="text-[#8A8378]">{mengirim} menunggu</span>}
             </div>
             <div className="flex flex-col gap-1 max-h-52 overflow-y-auto">
@@ -957,10 +991,11 @@ export default function WAMassal() {
                     {l.status === 'mengirim' && <span className="w-3.5 h-3.5 rounded-full border-2 border-[#D8A23D] border-t-transparent animate-spin inline-block" />}
                     {l.status === 'terkirim' && <IconCheck />}
                     {l.status === 'gagal' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-red-400"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>}
+                    {l.status === 'dilewati' && <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-orange-400"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11.5px] font-mono text-[#B3ACA1]">+{l.nomor}</div>
-                    {l.pesan && <div className="text-[10.5px] text-red-400 mt-0.5 truncate">{l.pesan}</div>}
+                    <div className={`text-[11.5px] font-mono ${l.status === 'dilewati' ? 'text-[#8A8378]' : 'text-[#B3ACA1]'}`}>+{l.nomor}</div>
+                    {l.pesan && <div className={`text-[10.5px] mt-0.5 truncate ${l.status === 'dilewati' ? 'text-orange-400/70' : 'text-red-400'}`}>{l.pesan}</div>}
                   </div>
                 </div>
               ))}
@@ -1117,11 +1152,27 @@ export default function WAMassal() {
                           </div>
                           <div className="flex gap-0.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-all">
                             <button onClick={() => mulaiEdit(k)}
-                              className="p-1 rounded hover:bg-[#D8A23D]/20 text-[#8A8378] hover:text-[#D8A23D] transition-colors">
+                              className="p-1 rounded hover:bg-[#D8A23D]/20 text-[#8A8378] hover:text-[#D8A23D] transition-colors" title="Edit">
                               <IconPencil />
                             </button>
+                            <button
+                              title={k.nomor.some(n => blSet.has(n)) ? 'Hapus dari blacklist' : 'Blacklist'}
+                              onClick={async () => {
+                                const nomor = k.nomor[0]
+                                if (blSet.has(nomor)) {
+                                  await fetch('/api/wa-massal/blacklist', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nomor }) })
+                                } else {
+                                  await fetch('/api/wa-massal/blacklist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nomor }) })
+                                }
+                                await muatData()
+                              }}
+                              className={`p-1 rounded transition-colors ${k.nomor.some(n => blSet.has(n)) ? 'text-orange-400 hover:bg-orange-500/20' : 'text-[#8A8378] hover:bg-orange-500/20 hover:text-orange-400'}`}>
+                              <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/>
+                              </svg>
+                            </button>
                             <button onClick={() => hapusKontak(k.id)}
-                              className="p-1 rounded hover:bg-red-500/20 text-[#8A8378] hover:text-red-400 transition-colors">
+                              className="p-1 rounded hover:bg-red-500/20 text-[#8A8378] hover:text-red-400 transition-colors" title="Hapus">
                               <IconX />
                             </button>
                           </div>
@@ -1134,22 +1185,30 @@ export default function WAMassal() {
                 {/* Form tambah kontak */}
                 {!showTambahKontak ? (
                   <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
-                    <button onClick={() => { setShowTambahKontak(true); setShowGmaps(false); setShowTiktok(false) }}
+                    <button onClick={() => { setShowTambahKontak(true); setShowGmaps(false); setShowTiktok(false); setShowBlacklist(false) }}
                       className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors">
                       + Tambah kontak baru
                     </button>
                     <span className="text-[#4A453D]">·</span>
-                    <button onClick={() => { setShowGmaps(v => !v); setShowTambahKontak(false); setShowTiktok(false) }}
+                    <button onClick={() => { setShowGmaps(v => !v); setShowTambahKontak(false); setShowTiktok(false); setShowBlacklist(false) }}
                       className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors flex items-center gap-1">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                       GMaps
                     </button>
                     <span className="text-[#4A453D]">·</span>
-                    <button onClick={() => { setShowTiktok(v => !v); setShowGmaps(false); setShowTambahKontak(false) }}
+                    <button onClick={() => { setShowTiktok(v => !v); setShowGmaps(false); setShowTambahKontak(false); setShowBlacklist(false) }}
                       className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors flex items-center gap-1">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.79 1.54V6.78a4.85 4.85 0 0 1-1.02-.09z"/></svg>
                       TikTok
                     </button>
+                    {blacklist.length > 0 && <span className="text-[#4A453D]">·</span>}
+                    {blacklist.length > 0 && (
+                      <button onClick={() => { setShowBlacklist(v => !v); setShowGmaps(false); setShowTiktok(false); setShowTambahKontak(false) }}
+                        className="text-[11.5px] text-orange-400/80 hover:text-orange-400 transition-colors flex items-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/></svg>
+                        Blacklist ({blacklist.length})
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2 pt-2 border-t border-white/[0.06]">
@@ -1365,6 +1424,36 @@ export default function WAMassal() {
                         )}
                       </>
                     )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Panel Blacklist */}
+            {activePanel === 'kontak' && showBlacklist && (
+              <div className="flex flex-col gap-2 pt-2 border-t border-white/[0.06]">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold tracking-[0.12em] text-orange-400/70">NOMOR DIBLACKLIST</p>
+                  <span className="text-[10px] text-[#4A453D]">Nomor ini tidak akan dikirim WA</span>
+                </div>
+                {blacklist.length === 0 ? (
+                  <p className="text-[11.5px] text-[#4A453D] text-center py-3">Belum ada nomor di blacklist</p>
+                ) : (
+                  <div className="flex flex-col gap-1 max-h-52 overflow-y-auto">
+                    {blacklist.map(b => (
+                      <div key={b.nomor} className="flex items-center gap-2 px-2.5 py-2 rounded bg-orange-500/[0.05] border border-orange-500/15">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12px] font-mono text-[#B3ACA1]">+{b.nomor}</p>
+                          {b.alasan && <p className="text-[10.5px] text-[#8A8378] truncate">{b.alasan}</p>}
+                        </div>
+                        <button onClick={async () => {
+                          await fetch('/api/wa-massal/blacklist', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nomor: b.nomor }) })
+                          await muatData()
+                        }} className="shrink-0 text-[10.5px] text-[#8A8378] hover:text-red-400 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors">
+                          Hapus
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

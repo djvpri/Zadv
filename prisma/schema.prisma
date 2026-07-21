@@ -97,6 +97,13 @@ model WaRiwayat {
 
   @@index([sentAt])
   @@index([status])
+  @@index([nomor, sentAt])
+}
+
+model WaBlacklist {
+  nomor     String   @id
+  alasan    String?
+  createdAt DateTime @default(now())
 }
 
 model MusicTrack {
