@@ -9,7 +9,7 @@ function normalizeNomor(raw: string): string {
 }
 
 // Ekstrak semua nomor WA dari teks bebas
-export function extractNomors(text: string): string[] {
+function extractNomors(text: string): string[] {
   const re = /(?:\+?62|0)[2-9]\d{7,11}/g
   const seen = new Set<string>()
   const raw = text.match(re) || []
