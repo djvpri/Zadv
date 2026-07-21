@@ -73,6 +73,16 @@ model WaTemplate {
   updatedAt DateTime @updatedAt
 }
 
+model WaKontak {
+  id        Int      @id @default(autoincrement())
+  nama      String
+  nomor     String
+  grup      String?
+  createdAt DateTime @default(now())
+
+  @@index([grup])
+}
+
 model MusicTrack {
   id        Int      @id @default(autoincrement())
   nama      String
