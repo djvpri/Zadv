@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
     const data = await res.json()
     ok = res.ok && data.status !== false
     reason = ok ? undefined : (data.reason || data.message || 'Gagal kirim')
+    // Simpan raw response untuk debug
+    console.log('[wa-massal] Fonnte response:', JSON.stringify(data))
   } catch {
     reason = 'Tidak dapat terhubung ke Fonnte'
   }
