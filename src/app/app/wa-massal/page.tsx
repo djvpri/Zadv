@@ -104,6 +104,7 @@ export default function WAMassal() {
   const [kontaks, setKontaks] = useState<WaKontak[]>([])
   const [filterGrup, setFilterGrup] = useState('')
   const [checked, setChecked] = useState<Set<number>>(new Set())
+  const [kontakMap, setKontakMap] = useState<Map<string, { nama: string; grup: string | null }>>(new Map())
   const [showTambahKontak, setShowTambahKontak] = useState(false)
   const [formNama, setFormNama] = useState('')
   const [formNomors, setFormNomors] = useState([''])
@@ -122,6 +123,7 @@ export default function WAMassal() {
   const [mediaUploading, setMediaUploading] = useState(false)
   const [mediaUploadedFile, setMediaUploadedFile] = useState('')  // nama file di server
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pesanRef = useRef<HTMLTextAreaElement>(null)
 
   const muatRiwayat = useCallback(async () => {
     const r = await fetch('/api/wa-massal/riwayat').then(x => x.json())
@@ -217,7 +219,35 @@ export default function WAMassal() {
     const existing = nomorRaw.trim()
     const baru = selected.flatMap(k => k.nomor.map(n => '0' + n.replace(/^62/, ''))).join('\n')
     setNomorRaw(existing ? existing + '\n' + baru : baru)
+    // Simpan ke kontakMap untuk substitusi variabel saat kirim
+    setKontakMap(prev => {
+      const next = new Map(prev)
+      selected.forEach(k => k.nomor.forEach(n => next.set(n, { nama: k.nama, grup: k.grup })))
+      return next
+    })
     setChecked(new Set())
+  }
+
+  function substituteVars(template: string, nomor: string): string {
+    const info = kontakMap.get(nomor)
+    return template
+      .replace(/\{\{nama\}\}/g, info?.nama ?? '')
+      .replace(/\{\{grup\}\}/g, info?.grup ?? '')
+      .replace(/\{\{nomor\}\}/g, '0' + nomor.replace(/^62/, ''))
+  }
+
+  function sisipVariabel(varName: string) {
+    const el = pesanRef.current
+    if (!el) { setPesan(p => p + `{{${varName}}}`); return }
+    const start = el.selectionStart ?? pesan.length
+    const end = el.selectionEnd ?? pesan.length
+    const val = `{{${varName}}}`
+    const next = pesan.slice(0, start) + val + pesan.slice(end)
+    setPesan(next)
+    requestAnimationFrame(() => {
+      el.focus()
+      el.setSelectionRange(start + val.length, start + val.length)
+    })
   }
 
   async function uploadMedia(file: File) {
@@ -277,10 +307,11 @@ export default function WAMassal() {
       if (batalRef.current) break
       const nomor = daftar[i]
       try {
+        const pesanFinal = substituteVars(pesan, nomor)
         const res = await fetch('/api/wa-massal', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            token: token.trim(), target: nomor, message: pesan,
+            token: token.trim(), target: nomor, message: pesanFinal,
             ...(lampiranUrl ? { url: lampiranUrl, filename: lampiranFilename } : {}),
           }),
         })
@@ -301,6 +332,10 @@ export default function WAMassal() {
   const terkirim = log.filter(l => l.status === 'terkirim').length
   const gagal = log.filter(l => l.status === 'gagal').length
   const mengirim = log.filter(l => l.status === 'mengirim').length
+
+  const adaVariabel = /\{\{(nama|grup|nomor)\}\}/.test(pesan)
+  const contohNomor = daftar[0] ?? ''
+  const contohPesan = contohNomor ? substituteVars(pesan, contohNomor) : pesan
 
   const grupLabels = Array.from(new Set(kontaks.map(k => k.grup).filter(Boolean))) as string[]
   const kontakFiltered = filterGrup ? kontaks.filter(k => k.grup === filterGrup) : kontaks
@@ -443,11 +478,32 @@ export default function WAMassal() {
               )}
             </div>
           </div>
+          {/* Badge variabel */}
+          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+            <span className="text-[10px] text-[#4A453D]">Sisip:</span>
+            {['nama', 'grup', 'nomor'].map(v => (
+              <button key={v} onClick={() => sisipVariabel(v)}
+                className="text-[10.5px] font-mono px-2 py-0.5 rounded bg-[#D8A23D]/10 border border-[#D8A23D]/25 text-[#D8A23D] hover:bg-[#D8A23D]/20 transition-colors">
+                {`{{${v}}}`}
+              </button>
+            ))}
+          </div>
           <textarea
+            ref={pesanRef}
             value={pesan} onChange={e => setPesan(e.target.value)} rows={8}
-            placeholder={"Tulis pesan promosi di sini...\n\nAtau generate dulu di tab Z Adv, lalu salin ke sini."}
+            placeholder={"Halo, selamat pagi, Bapak/Ibu {{nama}}!\n\nKami ingin menginformasikan promo terbaru..."}
             className="w-full bg-[#161311] border border-white/15 rounded-md px-3 py-2.5 text-[13px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50 resize-none leading-relaxed"
           />
+          {/* Pratinjau substitusi */}
+          {adaVariabel && contohNomor && contohPesan !== pesan && (
+            <div className="mt-2 rounded-md bg-white/[0.03] border border-[#D8A23D]/15 p-3">
+              <p className="text-[9.5px] font-semibold tracking-[0.12em] text-[#D8A23D]/60 mb-1.5">PRATINJAU — {kontakMap.get(contohNomor)?.nama ?? `+${contohNomor}`}</p>
+              <p className="text-[11.5px] text-[#B3ACA1] whitespace-pre-wrap leading-relaxed">{contohPesan}</p>
+            </div>
+          )}
+          {adaVariabel && kontakMap.size === 0 && (
+            <p className="text-[10.5px] text-amber-400/70 mt-2">⚠ Tambahkan kontak via panel kanan agar nama dapat disubstitusi.</p>
+          )}
           {pesan.trim() && (
             <div className="mt-3 border-t border-white/[0.06] pt-3">
               {!showSimpanTemplate ? (
