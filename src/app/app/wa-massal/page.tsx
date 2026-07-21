@@ -110,6 +110,11 @@ export default function WAMassal() {
   const [formNomors, setFormNomors] = useState([''])
   const [formGrup, setFormGrup] = useState('')
   const [tambahLoading, setTambahLoading] = useState(false)
+  const [editId, setEditId] = useState<number | null>(null)
+  const [editNama, setEditNama] = useState('')
+  const [editNomors, setEditNomors] = useState<string[]>([''])
+  const [editGrup, setEditGrup] = useState('')
+  const [editLoading, setEditLoading] = useState(false)
   const [activePanel, setActivePanel] = useState<'kontak' | 'grup' | 'template' | 'riwayat'>('kontak')
   const [riwayat, setRiwayat] = useState<WaRiwayat[]>([])
   const [bulanan, setBulanan] = useState(0)
@@ -214,6 +219,29 @@ export default function WAMassal() {
   async function hapusKontak(id: number) {
     await fetch(`/api/wa-massal/kontak/${id}`, { method: 'DELETE' }); muatData()
     setChecked(prev => { const s = new Set(prev); s.delete(id); return s })
+  }
+
+  function mulaiEdit(k: WaKontak) {
+    setEditId(k.id)
+    setEditNama(k.nama)
+    setEditNomors(k.nomor.map(n => '0' + n.replace(/^62/, '')))
+    setEditGrup(k.grup ?? '')
+    setShowTambahKontak(false)
+  }
+
+  async function simpanEdit() {
+    if (!editId) return
+    const nomorArr = editNomors.map(n => normalisiNomor(n)).filter(n => n.length >= 10)
+    if (!editNama.trim() || nomorArr.length === 0) return
+    setEditLoading(true)
+    try {
+      const res = await fetch(`/api/wa-massal/kontak/${editId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nama: editNama.trim(), nomor: nomorArr, grup: editGrup.trim() || null }),
+      })
+      if (!res.ok) { const e = await res.json(); alert(e.error || 'Gagal menyimpan'); setEditLoading(false); return }
+    } catch { alert('Koneksi error'); setEditLoading(false); return }
+    setEditId(null); setEditLoading(false); muatData()
   }
 
   function toggleCheck(id: number) {
@@ -368,6 +396,11 @@ export default function WAMassal() {
   const IconCheck = () => (
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-emerald-400">
       <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+    </svg>
+  )
+  const IconPencil = () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
     </svg>
   )
 
@@ -752,27 +785,78 @@ export default function WAMassal() {
                     <p className="text-[11.5px] text-[#4A453D] text-center py-4">Belum ada kontak</p>
                   )}
                   {kontakFiltered.map(k => (
-                    <div key={k.id} className="flex items-start gap-2 group py-1.5 border-b border-white/[0.05] last:border-0">
-                      <input type="checkbox" checked={checked.has(k.id)} onChange={() => toggleCheck(k.id)}
-                        className="accent-[#D8A23D] shrink-0 cursor-pointer mt-1" />
-                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleCheck(k.id)}>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[12px] text-[#E7E2DC] truncate">{k.nama}</span>
-                          {k.nomor.length > 1 && (
-                            <span className="shrink-0 text-[9px] bg-[#D8A23D]/20 text-[#D8A23D] px-1 py-0.5 rounded font-medium">{k.nomor.length} nomor</span>
-                          )}
+                    <div key={k.id} className="flex flex-col py-1.5 border-b border-white/[0.05] last:border-0">
+                      {editId === k.id ? (
+                        /* Inline edit form */
+                        <div className="flex flex-col gap-2">
+                          <input autoFocus type="text" value={editNama} onChange={e => setEditNama(e.target.value)}
+                            placeholder="Nama kontak"
+                            className="w-full bg-[#161311] border border-[#D8A23D]/50 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none" />
+                          <div className="flex flex-col gap-1.5">
+                            {editNomors.map((n, i) => (
+                              <div key={i} className="flex gap-1.5">
+                                <input type="tel" value={n}
+                                  onChange={e => setEditNomors(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                                  placeholder={i === 0 ? 'Nomor WA (08xx / 628xx)' : `Nomor ${i + 1}`}
+                                  className="flex-1 bg-[#161311] border border-white/15 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50 font-mono" />
+                                {editNomors.length > 1 && (
+                                  <button onClick={() => setEditNomors(prev => prev.filter((_, j) => j !== i))}
+                                    className="px-2 rounded border border-white/15 text-[#8A8378] hover:text-red-400 hover:border-red-400/30 transition-colors">
+                                    <IconX />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            <button onClick={() => setEditNomors(prev => [...prev, ''])}
+                              className="text-[11px] text-[#8A8378] hover:text-[#D8A23D] transition-colors text-left">
+                              + Nomor lain
+                            </button>
+                          </div>
+                          <input type="text" value={editGrup} onChange={e => setEditGrup(e.target.value)}
+                            placeholder="Grup (opsional)" list="grup-list"
+                            className="w-full bg-[#161311] border border-white/15 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
+                          <div className="flex gap-2">
+                            <button onClick={simpanEdit} disabled={editLoading || !editNama.trim() || editNomors.every(n => !n.trim())}
+                              className="flex-1 py-1.5 rounded bg-[#D8A23D] text-[#1C1917] text-[12px] font-medium hover:bg-[#C89230] disabled:opacity-50 transition-colors">
+                              {editLoading ? 'Menyimpan...' : 'Simpan'}
+                            </button>
+                            <button onClick={() => setEditId(null)}
+                              className="px-3 py-1.5 rounded border border-white/15 text-[12px] text-[#8A8378] hover:text-white transition-colors">
+                              Batal
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex flex-col gap-0.5 mt-0.5">
-                          {k.nomor.map((n, i) => (
-                            <span key={i} className="text-[10.5px] font-mono text-[#8A8378]">+{n}</span>
-                          ))}
-                          {k.grup && <span className="text-[10px] text-[#4A453D] mt-0.5">{k.grup}</span>}
+                      ) : (
+                        /* Tampilan normal */
+                        <div className="flex items-start gap-2 group">
+                          <input type="checkbox" checked={checked.has(k.id)} onChange={() => toggleCheck(k.id)}
+                            className="accent-[#D8A23D] shrink-0 cursor-pointer mt-1" />
+                          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleCheck(k.id)}>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[12px] text-[#E7E2DC] truncate">{k.nama}</span>
+                              {k.nomor.length > 1 && (
+                                <span className="shrink-0 text-[9px] bg-[#D8A23D]/20 text-[#D8A23D] px-1 py-0.5 rounded font-medium">{k.nomor.length} nomor</span>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-0.5 mt-0.5">
+                              {k.nomor.map((n, i) => (
+                                <span key={i} className="text-[10.5px] font-mono text-[#8A8378]">+{n}</span>
+                              ))}
+                              {k.grup && <span className="text-[10px] text-[#4A453D] mt-0.5">{k.grup}</span>}
+                            </div>
+                          </div>
+                          <div className="flex gap-0.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={() => mulaiEdit(k)}
+                              className="p-1 rounded hover:bg-[#D8A23D]/20 text-[#8A8378] hover:text-[#D8A23D] transition-colors">
+                              <IconPencil />
+                            </button>
+                            <button onClick={() => hapusKontak(k.id)}
+                              className="p-1 rounded hover:bg-red-500/20 text-[#8A8378] hover:text-red-400 transition-colors">
+                              <IconX />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <button onClick={() => hapusKontak(k.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-[#8A8378] hover:text-red-400 transition-all shrink-0 mt-0.5">
-                        <IconX />
-                      </button>
+                      )}
                     </div>
                   ))}
                 </div>
