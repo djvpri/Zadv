@@ -1,35 +1,49 @@
+import https from 'https'
 import { NextRequest, NextResponse } from 'next/server'
 import { MAX_WA_MEDIA_BYTES, TIPE_DIIZINKAN } from '@/lib/wa-media-storage'
 
 export const runtime = 'nodejs'
 
-// Buat multipart body manual — Node.js native FormData+Blob kadang 400 di Telegraph
-function buatMultipart(buffer: Buffer, mime: string, filename: string) {
-  const boundary = 'TelegraphBoundary7x9k2m'
-  const head = Buffer.from(
-    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mime}\r\n\r\n`
-  )
-  const tail = Buffer.from(`\r\n--${boundary}--\r\n`)
-  const body = Buffer.concat([head, buffer, tail])
-  return { body, contentType: `multipart/form-data; boundary=${boundary}` }
-}
+// Upload ke catbox.moe — gratis, no API key, stabil dari server
+async function uploadKeCatbox(buffer: Buffer, mime: string, filename: string): Promise<string> {
+  const boundary = 'CbxBound9f3k'
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="reqtype"\r\n\r\nfileupload\r\n`),
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="fileToUpload"; filename="${filename}"\r\nContent-Type: ${mime}\r\n\r\n`),
+    buffer,
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ])
 
-async function uploadKeTelegraph(buffer: Buffer, mime: string, filename: string): Promise<string> {
-  const { body, contentType } = buatMultipart(buffer, mime, filename)
-
-  const res = await fetch('https://telegra.ph/upload', {
-    method: 'POST',
-    headers: { 'Content-Type': contentType },
-    body,
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'catbox.moe',
+        path: '/user/api.php',
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': body.length,
+          'User-Agent': 'Mozilla/5.0 (compatible)',
+        },
+      },
+      (res) => {
+        let raw = ''
+        res.on('data', (c) => (raw += c))
+        res.on('end', () => {
+          const url = raw.trim()
+          if (res.statusCode && res.statusCode >= 300) {
+            reject(new Error(`Catbox HTTP ${res.statusCode}: ${url.slice(0, 80)}`))
+          } else if (!url.startsWith('https://')) {
+            reject(new Error(`Catbox error: ${url.slice(0, 80)}`))
+          } else {
+            resolve(url)
+          }
+        })
+      }
+    )
+    req.on('error', reject)
+    req.end(body)
   })
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '')
-    throw new Error(`Telegraph HTTP ${res.status}: ${txt.slice(0, 100)}`)
-  }
-  const data = await res.json()
-  // Response: [{ "src": "/file/xxx.jpg" }]
-  if (!Array.isArray(data) || !data[0]?.src) throw new Error('Response Telegraph tidak valid')
-  return `https://telegra.ph${data[0].src}`
 }
 
 export async function POST(req: NextRequest) {
@@ -39,18 +53,15 @@ export async function POST(req: NextRequest) {
     const ext = TIPE_DIIZINKAN[baseType]
     if (!ext) return NextResponse.json({ error: `Tipe tidak didukung: ${baseType}` }, { status: 400 })
 
-    if (!baseType.startsWith('image/')) {
-      return NextResponse.json({ error: 'Telegraph hanya support gambar. Untuk PDF/video gunakan mode URL eksternal.' }, { status: 400 })
-    }
-
     const buffer = Buffer.from(await req.arrayBuffer())
     if (buffer.length === 0) return NextResponse.json({ error: 'File kosong' }, { status: 400 })
-    if (buffer.length > MAX_WA_MEDIA_BYTES) return NextResponse.json({ error: 'File terlalu besar (maks 16MB)' }, { status: 400 })
+    if (buffer.length > MAX_WA_MEDIA_BYTES)
+      return NextResponse.json({ error: 'File terlalu besar (maks 16MB)' }, { status: 400 })
 
     const originalName = req.headers.get('x-file-name') || `file.${ext}`
-    const url = await uploadKeTelegraph(buffer, baseType, originalName)
+    const url = await uploadKeCatbox(buffer, baseType, originalName)
 
-    console.log('[telegraph-upload] url:', url)
+    console.log('[catbox-upload] url:', url)
     return NextResponse.json({ url, filename: originalName, mime: baseType })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
