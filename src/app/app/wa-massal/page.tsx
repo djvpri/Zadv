@@ -316,8 +316,8 @@ export default function WAMassal() {
         alert(data.error || 'Upload gagal')
         resetMedia()
       }
-    } catch {
-      alert('Upload gagal — periksa koneksi')
+    } catch (e) {
+      alert('Upload gagal: ' + (e instanceof Error ? e.message : 'periksa koneksi'))
       resetMedia()
     }
     setMediaUploading(false)

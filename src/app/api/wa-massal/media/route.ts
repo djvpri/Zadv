@@ -15,42 +15,36 @@ function getPublicUrl(req: NextRequest, filename: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  if (!req.body) return NextResponse.json({ error: 'File tidak ditemukan' }, { status: 400 })
+  try {
+    const mime = req.headers.get('x-media-type') || req.headers.get('content-type') || ''
+    const baseType = mime.split(';')[0].trim()
+    const ext = TIPE_DIIZINKAN[baseType]
+    if (!ext) {
+      return NextResponse.json({ error: `Tipe tidak didukung: ${baseType}` }, { status: 400 })
+    }
 
-  const mime = req.headers.get('x-media-type') || req.headers.get('content-type') || ''
-  const baseType = mime.split(';')[0].trim()
-  const ext = TIPE_DIIZINKAN[baseType]
-  if (!ext) {
-    return NextResponse.json({ error: `Tipe tidak didukung: ${baseType}` }, { status: 400 })
+    const buffer = Buffer.from(await req.arrayBuffer())
+    if (buffer.length === 0) {
+      return NextResponse.json({ error: 'File kosong' }, { status: 400 })
+    }
+    if (buffer.length > MAX_WA_MEDIA_BYTES) {
+      return NextResponse.json({ error: `File terlalu besar (maks 16MB)` }, { status: 400 })
+    }
+
+    const originalName = req.headers.get('x-file-name') || `file.${ext}`
+    const uuid = randomUUID()
+    const filename = `${uuid}.${ext}`
+
+    const dir = await pastikanWaMediaDir()
+    const filepath = path.join(dir, filename)
+    await fs.writeFile(filepath, buffer)
+
+    const url = getPublicUrl(req, filename)
+    return NextResponse.json({ url, filename, originalName, mime: baseType, size: buffer.length }, { status: 201 })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return NextResponse.json({ error: `Upload error: ${msg}` }, { status: 500 })
   }
-
-  const originalName = req.headers.get('x-file-name') || `file.${ext}`
-  const uuid = randomUUID()
-  const filename = `${uuid}.${ext}`
-
-  const dir = await pastikanWaMediaDir()
-  const filepath = path.join(dir, filename)
-
-  const { createWriteStream } = await import('fs')
-  const { Readable } = await import('stream')
-  const { pipeline } = await import('stream/promises')
-
-  const ws = createWriteStream(filepath)
-  const nodeStream = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0])
-  await pipeline(nodeStream, ws)
-
-  const stat = await fs.stat(filepath)
-  if (stat.size === 0) {
-    await fs.unlink(filepath).catch(() => {})
-    return NextResponse.json({ error: 'File kosong' }, { status: 400 })
-  }
-  if (stat.size > MAX_WA_MEDIA_BYTES) {
-    await fs.unlink(filepath).catch(() => {})
-    return NextResponse.json({ error: `File terlalu besar (maks 16MB)` }, { status: 400 })
-  }
-
-  const url = getPublicUrl(req, filename)
-  return NextResponse.json({ url, filename, originalName, mime: baseType, size: stat.size }, { status: 201 })
 }
 
 export async function DELETE(req: NextRequest) {
