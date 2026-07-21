@@ -18,6 +18,11 @@ export async function POST(req: NextRequest) {
   if (!nama?.trim() || nomorArr.length === 0) {
     return NextResponse.json({ error: 'nama dan minimal 1 nomor wajib diisi' }, { status: 400 })
   }
+  const duplikat = await prisma.waKontak.findFirst({ where: { nomor: { hasSome: nomorArr } }, select: { nama: true, nomor: true } })
+  if (duplikat) {
+    const nomorBentrok = nomorArr.find(n => duplikat.nomor.includes(n))
+    return NextResponse.json({ error: `Nomor +${nomorBentrok} sudah ada di kontak "${duplikat.nama}"` }, { status: 409 })
+  }
   const kontak = await prisma.waKontak.create({
     data: { nama: nama.trim(), nomor: nomorArr, grup: grup?.trim() || null },
   })

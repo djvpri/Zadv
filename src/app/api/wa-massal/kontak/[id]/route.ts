@@ -11,6 +11,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     : [nomor?.trim()].filter(Boolean)
   if (!nama?.trim() || nomorArr.length === 0)
     return NextResponse.json({ error: 'nama dan minimal 1 nomor wajib diisi' }, { status: 400 })
+  const duplikat = await prisma.waKontak.findFirst({ where: { nomor: { hasSome: nomorArr }, NOT: { id } }, select: { nama: true, nomor: true } })
+  if (duplikat) {
+    const nomorBentrok = nomorArr.find(n => duplikat.nomor.includes(n))
+    return NextResponse.json({ error: `Nomor +${nomorBentrok} sudah ada di kontak "${duplikat.nama}"` }, { status: 409 })
+  }
   const kontak = await prisma.waKontak.update({
     where: { id },
     data: { nama: nama.trim(), nomor: nomorArr, grup: grup?.trim() || null },

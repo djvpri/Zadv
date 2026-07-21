@@ -379,7 +379,8 @@ export default function WAMassal() {
     await muatData()
     setGmapsImporting(false)
     setGmapsPilih(new Set())
-    alert(`${berhasil} kontak berhasil diimport`)
+    const diskip = dipilih.length - berhasil
+    alert(`${berhasil} kontak berhasil diimport${diskip > 0 ? `, ${diskip} dilewati (nomor sudah ada)` : ''}`)
   }
 
   async function cariTiktok() {
@@ -432,7 +433,8 @@ export default function WAMassal() {
     setTiktokPilih(new Set())
     setTiktokHasil([])
     setTiktokTeks('')
-    alert(`${berhasil} kontak berhasil diimport`)
+    const diskip = dipilih.length - berhasil
+    alert(`${berhasil} kontak berhasil diimport${diskip > 0 ? `, ${diskip} dilewati (nomor sudah ada)` : ''}`)
   }
 
   function mulaiEdit(k: WaKontak) {
