@@ -11,11 +11,15 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const { nama, nomor, grup } = await req.json()
-  if (!nama?.trim() || !nomor?.trim()) {
-    return NextResponse.json({ error: 'nama dan nomor wajib diisi' }, { status: 400 })
+  const nomorArr: string[] = Array.isArray(nomor)
+    ? nomor.map((n: string) => n.trim()).filter(Boolean)
+    : [nomor?.trim()].filter(Boolean)
+
+  if (!nama?.trim() || nomorArr.length === 0) {
+    return NextResponse.json({ error: 'nama dan minimal 1 nomor wajib diisi' }, { status: 400 })
   }
   const kontak = await prisma.waKontak.create({
-    data: { nama: nama.trim(), nomor: nomor.trim(), grup: grup?.trim() || null },
+    data: { nama: nama.trim(), nomor: nomorArr, grup: grup?.trim() || null },
   })
   return NextResponse.json(kontak, { status: 201 })
 }

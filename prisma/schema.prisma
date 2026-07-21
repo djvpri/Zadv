@@ -76,7 +76,7 @@ model WaTemplate {
 model WaKontak {
   id        Int      @id @default(autoincrement())
   nama      String
-  nomor     String
+  nomor     String[]
   grup      String?
   createdAt DateTime @default(now())
 

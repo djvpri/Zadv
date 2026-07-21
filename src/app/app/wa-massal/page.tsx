@@ -8,7 +8,7 @@ interface LogEntry {
 }
 interface WaGrup { id: number; nama: string; nomor: string[] }
 interface WaTemplate { id: number; judul: string; teks: string }
-interface WaKontak { id: number; nama: string; nomor: string; grup: string | null }
+interface WaKontak { id: number; nama: string; nomor: string[]; grup: string | null }
 interface WaRiwayat { id: number; nomor: string; pesan: string; mediaUrl: string | null; status: string; alasan: string | null; sentAt: string }
 
 function normalisiNomor(raw: string): string {
@@ -106,7 +106,7 @@ export default function WAMassal() {
   const [checked, setChecked] = useState<Set<number>>(new Set())
   const [showTambahKontak, setShowTambahKontak] = useState(false)
   const [formNama, setFormNama] = useState('')
-  const [formNomor, setFormNomor] = useState('')
+  const [formNomors, setFormNomors] = useState([''])
   const [formGrup, setFormGrup] = useState('')
   const [tambahLoading, setTambahLoading] = useState(false)
   const [activePanel, setActivePanel] = useState<'kontak' | 'grup' | 'template' | 'riwayat'>('kontak')
@@ -191,13 +191,14 @@ export default function WAMassal() {
   }
 
   async function tambahKontak() {
-    if (!formNama.trim() || !formNomor.trim()) return
+    const nomorArr = formNomors.map(n => normalisiNomor(n)).filter(n => n.length >= 10)
+    if (!formNama.trim() || nomorArr.length === 0) return
     setTambahLoading(true)
     await fetch('/api/wa-massal/kontak', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nama: formNama.trim(), nomor: normalisiNomor(formNomor), grup: formGrup.trim() || null }),
+      body: JSON.stringify({ nama: formNama.trim(), nomor: nomorArr, grup: formGrup.trim() || null }),
     })
-    setFormNama(''); setFormNomor(''); setFormGrup(''); setTambahLoading(false)
+    setFormNama(''); setFormNomors(['']); setFormGrup(''); setTambahLoading(false)
     muatData()
   }
 
@@ -214,7 +215,7 @@ export default function WAMassal() {
     const selected = kontakFiltered.filter(k => checked.has(k.id))
     if (selected.length === 0) return
     const existing = nomorRaw.trim()
-    const baru = selected.map(k => '0' + k.nomor.replace(/^62/, '')).join('\n')
+    const baru = selected.flatMap(k => k.nomor.map(n => '0' + n.replace(/^62/, ''))).join('\n')
     setNomorRaw(existing ? existing + '\n' + baru : baru)
     setChecked(new Set())
   }
@@ -675,15 +676,25 @@ export default function WAMassal() {
                     <p className="text-[11.5px] text-[#4A453D] text-center py-4">Belum ada kontak</p>
                   )}
                   {kontakFiltered.map(k => (
-                    <div key={k.id} className="flex items-center gap-2 group py-1.5 border-b border-white/[0.05] last:border-0">
+                    <div key={k.id} className="flex items-start gap-2 group py-1.5 border-b border-white/[0.05] last:border-0">
                       <input type="checkbox" checked={checked.has(k.id)} onChange={() => toggleCheck(k.id)}
-                        className="accent-[#D8A23D] shrink-0 cursor-pointer" />
+                        className="accent-[#D8A23D] shrink-0 cursor-pointer mt-1" />
                       <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleCheck(k.id)}>
-                        <div className="text-[12px] text-[#E7E2DC] truncate">{k.nama}</div>
-                        <div className="text-[10.5px] font-mono text-[#8A8378]">+{k.nomor}{k.grup && <span className="ml-1.5 text-[#4A453D]">· {k.grup}</span>}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[12px] text-[#E7E2DC] truncate">{k.nama}</span>
+                          {k.nomor.length > 1 && (
+                            <span className="shrink-0 text-[9px] bg-[#D8A23D]/20 text-[#D8A23D] px-1 py-0.5 rounded font-medium">{k.nomor.length} nomor</span>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-0.5 mt-0.5">
+                          {k.nomor.map((n, i) => (
+                            <span key={i} className="text-[10.5px] font-mono text-[#8A8378]">+{n}</span>
+                          ))}
+                          {k.grup && <span className="text-[10px] text-[#4A453D] mt-0.5">{k.grup}</span>}
+                        </div>
                       </div>
                       <button onClick={() => hapusKontak(k.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-[#8A8378] hover:text-red-400 transition-all shrink-0">
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-[#8A8378] hover:text-red-400 transition-all shrink-0 mt-0.5">
                         <IconX />
                       </button>
                     </div>
@@ -700,9 +711,35 @@ export default function WAMassal() {
                     <input autoFocus type="text" value={formNama} onChange={e => setFormNama(e.target.value)}
                       placeholder="Nama kontak"
                       className="w-full bg-[#161311] border border-white/15 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
-                    <input type="tel" value={formNomor} onChange={e => setFormNomor(e.target.value)}
-                      placeholder="Nomor (08xx / 628xx)"
-                      className="w-full bg-[#161311] border border-white/15 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50 font-mono" />
+
+                    {/* Multi-nomor */}
+                    <div className="flex flex-col gap-1.5">
+                      {formNomors.map((n, i) => (
+                        <div key={i} className="flex gap-1.5">
+                          <input type="tel" value={n}
+                            onChange={e => setFormNomors(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && i === formNomors.length - 1) {
+                                e.preventDefault()
+                                setFormNomors(prev => [...prev, ''])
+                              }
+                            }}
+                            placeholder={i === 0 ? 'Nomor WA (08xx / 628xx)' : `Nomor ${i + 1}`}
+                            className="flex-1 bg-[#161311] border border-white/15 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50 font-mono" />
+                          {formNomors.length > 1 && (
+                            <button onClick={() => setFormNomors(prev => prev.filter((_, j) => j !== i))}
+                              className="px-2 rounded border border-white/15 text-[#8A8378] hover:text-red-400 hover:border-red-400/30 transition-colors">
+                              <IconX />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button onClick={() => setFormNomors(prev => [...prev, ''])}
+                        className="text-[11px] text-[#8A8378] hover:text-[#D8A23D] transition-colors text-left">
+                        + Tambah nomor lain
+                      </button>
+                    </div>
+
                     <input type="text" value={formGrup} onChange={e => setFormGrup(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && tambahKontak()}
                       placeholder="Grup (opsional)"
@@ -712,11 +749,12 @@ export default function WAMassal() {
                       {grupLabels.map(g => <option key={g} value={g} />)}
                     </datalist>
                     <div className="flex gap-2">
-                      <button onClick={tambahKontak} disabled={tambahLoading || !formNama.trim() || !formNomor.trim()}
+                      <button onClick={tambahKontak}
+                        disabled={tambahLoading || !formNama.trim() || formNomors.every(n => !n.trim())}
                         className="flex-1 py-1.5 rounded bg-[#D8A23D] text-[#1C1917] text-[12px] font-medium hover:bg-[#C89230] disabled:opacity-50 transition-colors">
                         Simpan
                       </button>
-                      <button onClick={() => { setShowTambahKontak(false); setFormNama(''); setFormNomor(''); setFormGrup('') }}
+                      <button onClick={() => { setShowTambahKontak(false); setFormNama(''); setFormNomors(['']); setFormGrup('') }}
                         className="px-3 py-1.5 rounded border border-white/15 text-[12px] text-[#8A8378] hover:text-white transition-colors">
                         Batal
                       </button>
