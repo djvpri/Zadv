@@ -5,7 +5,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { token: bodyToken, target, message } = await req.json()
+  const { token: bodyToken, target, message, url: mediaUrl, filename } = await req.json()
   const token = bodyToken?.trim() || process.env.FONNTE_TOKEN
 
   if (!token || !target || !message) {
@@ -13,13 +13,19 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const payload: Record<string, string> = { target, message, countryCode: '62' }
+    if (mediaUrl) {
+      payload.url = mediaUrl
+      if (filename) payload.filename = filename
+    }
+
     const res = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: {
         'Authorization': token,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ target, message, countryCode: '62' }),
+      body: JSON.stringify(payload),
     })
 
     const data = await res.json()

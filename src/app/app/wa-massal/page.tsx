@@ -21,6 +21,41 @@ function parseNomor(teks: string): string[] {
   return teks.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean).map(normalisiNomor).filter(n => n.length >= 10)
 }
 
+function MediaPreview({ mime, filename, url }: { mime: string; filename: string; url: string }) {
+  const isImage = mime.startsWith('image/')
+  const isPdf = mime === 'application/pdf'
+  const isVideo = mime.startsWith('video/')
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-white/[0.04] border border-white/[0.08]">
+      {isImage && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt={filename} className="w-14 h-14 rounded object-cover shrink-0 bg-white/10" />
+      )}
+      {isPdf && (
+        <div className="w-14 h-14 rounded bg-red-500/20 flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-red-400">
+            <path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7H20.5v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/>
+          </svg>
+        </div>
+      )}
+      {isVideo && (
+        <div className="w-14 h-14 rounded bg-blue-500/20 flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-blue-400">
+            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+          </svg>
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-[12.5px] text-[#E7E2DC] truncate font-medium">{filename}</p>
+        <p className="text-[10.5px] text-[#8A8378] mt-0.5">{mime}</p>
+      </div>
+      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-emerald-400 shrink-0">
+        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+      </svg>
+    </div>
+  )
+}
+
 const DELAY_OPTS = [
   { val: 3, label: '3 detik' },
   { val: 5, label: '5 detik' },
@@ -62,6 +97,16 @@ export default function WAMassal() {
   const [formGrup, setFormGrup] = useState('')
   const [tambahLoading, setTambahLoading] = useState(false)
   const [activePanel, setActivePanel] = useState<'kontak' | 'grup' | 'template'>('kontak')
+
+  // Lampiran media
+  type MediaMode = 'none' | 'upload' | 'url'
+  const [mediaMode, setMediaMode] = useState<MediaMode>('none')
+  const [mediaUrl, setMediaUrl] = useState('')        // URL eksternal atau hasil upload
+  const [mediaFilename, setMediaFilename] = useState('')
+  const [mediaMime, setMediaMime] = useState('')
+  const [mediaUploading, setMediaUploading] = useState(false)
+  const [mediaUploadedFile, setMediaUploadedFile] = useState('')  // nama file di server
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const muatData = useCallback(async () => {
     const [g, t, k] = await Promise.all([
@@ -152,6 +197,46 @@ export default function WAMassal() {
     setChecked(new Set())
   }
 
+  async function uploadMedia(file: File) {
+    setMediaUploading(true)
+    setMediaFilename(file.name)
+    setMediaMime(file.type)
+    try {
+      const res = await fetch('/api/wa-massal/media', {
+        method: 'POST',
+        headers: { 'x-media-type': file.type, 'x-file-name': file.name },
+        body: file,
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMediaUrl(data.url)
+        setMediaUploadedFile(data.filename)
+      } else {
+        alert(data.error || 'Upload gagal')
+        resetMedia()
+      }
+    } catch {
+      alert('Upload gagal — periksa koneksi')
+      resetMedia()
+    }
+    setMediaUploading(false)
+  }
+
+  function resetMedia() {
+    setMediaUrl('')
+    setMediaFilename('')
+    setMediaMime('')
+    setMediaUploadedFile('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (mediaUploadedFile) {
+      fetch('/api/wa-massal/media', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: mediaUploadedFile }),
+      }).catch(() => {})
+    }
+  }
+
   async function kirim() {
     const daftar = parseNomor(nomorRaw)
     if (!token.trim() && !hasEnvToken) return alert('Masukkan Fonnte API token terlebih dahulu.')
@@ -162,13 +247,19 @@ export default function WAMassal() {
     setBerjalan(true); setSelesai(false)
     setLog(daftar.map(n => ({ nomor: n, status: 'mengirim' })))
 
+    const lampiranUrl = mediaMode !== 'none' ? mediaUrl.trim() : ''
+    const lampiranFilename = mediaFilename || undefined
+
     for (let i = 0; i < daftar.length; i++) {
       if (batalRef.current) break
       const nomor = daftar[i]
       try {
         const res = await fetch('/api/wa-massal', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: token.trim(), target: nomor, message: pesan }),
+          body: JSON.stringify({
+            token: token.trim(), target: nomor, message: pesan,
+            ...(lampiranUrl ? { url: lampiranUrl, filename: lampiranFilename } : {}),
+          }),
         })
         const data = await res.json()
         updateLog(nomor, { status: data.ok ? 'terkirim' : 'gagal', pesan: data.ok ? undefined : data.reason })
@@ -351,6 +442,78 @@ export default function WAMassal() {
                   <button onClick={() => { setShowSimpanTemplate(false); setNamaTemplate('') }} className="px-2 py-1.5 rounded border border-white/15 text-[12px] text-[#8A8378] hover:text-white transition-colors">Batal</button>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Lampiran */}
+        <div className="rounded-lg bg-white/[0.03] border border-white/10 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-semibold tracking-[0.15em] text-[#8A8378]">LAMPIRAN (OPSIONAL)</p>
+            {mediaMode !== 'none' && (
+              <button onClick={() => { setMediaMode('none'); resetMedia() }}
+                className="text-[10.5px] text-[#8A8378] hover:text-red-400 transition-colors">
+                Hapus lampiran
+              </button>
+            )}
+          </div>
+
+          {mediaMode === 'none' && (
+            <div className="flex gap-2">
+              <button onClick={() => setMediaMode('upload')}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-md border border-white/15 text-[12px] text-[#B3ACA1] hover:border-[#D8A23D]/50 hover:text-white transition-colors">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0">
+                  <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+                </svg>
+                Upload File
+              </button>
+              <button onClick={() => setMediaMode('url')}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-md border border-white/15 text-[12px] text-[#B3ACA1] hover:border-[#D8A23D]/50 hover:text-white transition-colors">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0">
+                  <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+                </svg>
+                URL Eksternal
+              </button>
+            </div>
+          )}
+
+          {mediaMode === 'upload' && (
+            <div className="flex flex-col gap-3">
+              <input ref={fileInputRef} type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4"
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadMedia(f) }}
+                className="hidden" />
+              {!mediaUrl && !mediaUploading && (
+                <button onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 py-6 rounded-lg border-2 border-dashed border-white/15 hover:border-[#D8A23D]/40 transition-colors cursor-pointer text-[#8A8378] hover:text-white">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 opacity-40">
+                    <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+                  </svg>
+                  <span className="text-[12px]">Klik untuk pilih file</span>
+                  <span className="text-[10.5px] text-[#4A453D]">JPG · PNG · GIF · PDF · MP4 · maks 16MB</span>
+                </button>
+              )}
+              {mediaUploading && (
+                <div className="flex items-center gap-3 py-4 px-3 rounded-lg bg-white/[0.03]">
+                  <span className="w-4 h-4 rounded-full border-2 border-[#D8A23D] border-t-transparent animate-spin shrink-0" />
+                  <span className="text-[12px] text-[#8A8378]">Mengunggah {mediaFilename}...</span>
+                </div>
+              )}
+              {mediaUrl && !mediaUploading && (
+                <MediaPreview mime={mediaMime} filename={mediaFilename} url={mediaUrl} />
+              )}
+            </div>
+          )}
+
+          {mediaMode === 'url' && (
+            <div className="flex flex-col gap-2">
+              <input type="url" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)}
+                placeholder="https://contoh.com/gambar.jpg"
+                className="w-full bg-[#161311] border border-white/15 rounded-md px-3 py-2.5 text-[13px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
+              <input type="text" value={mediaFilename} onChange={e => setMediaFilename(e.target.value)}
+                placeholder="Nama file (opsional, untuk PDF)"
+                className="w-full bg-[#161311] border border-white/15 rounded-md px-3 py-2.5 text-[13px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
+              <p className="text-[10.5px] text-[#4A453D]">URL harus dapat diakses publik. Fonnte akan mengambil dan mengirimkan file-nya.</p>
             </div>
           )}
         </div>
