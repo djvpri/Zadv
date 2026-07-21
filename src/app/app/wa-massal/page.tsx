@@ -1079,7 +1079,14 @@ export default function WAMassal() {
                   <div className="flex flex-col gap-2 px-3 py-2.5 rounded-lg bg-[#D8A23D]/8 border border-[#D8A23D]/20">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-semibold text-[#D8A23D]">{checked.size} kontak dipilih</span>
-                      <button onClick={() => setChecked(new Set())} className="text-[10px] text-[#8A8378] hover:text-white transition-colors">Batal pilih</button>
+                      <div className="flex items-center gap-2">
+                        {checked.size < kontakFiltered.length && (
+                          <button onClick={() => setChecked(new Set(kontakFiltered.map(k => k.id)))} className="text-[10px] text-[#D8A23D] hover:text-[#C89230] transition-colors">
+                            Pilih semua ({kontakFiltered.length})
+                          </button>
+                        )}
+                        <button onClick={() => setChecked(new Set())} className="text-[10px] text-[#8A8378] hover:text-white transition-colors">Batal pilih</button>
+                      </div>
                     </div>
                     <div className="flex gap-1.5">
                       <select value={assignGrupVal} onChange={e => setAssignGrupVal(e.target.value)}
@@ -1107,6 +1114,18 @@ export default function WAMassal() {
                 )}
 
                 {/* List kontak */}
+                {kontakFiltered.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10.5px] text-[#4A453D]">{kontakFiltered.length} kontak</span>
+                    <button onClick={() => {
+                      const semuaId = new Set(kontakFiltered.map(k => k.id))
+                      const semuaTerpilih = kontakFiltered.every(k => checked.has(k.id))
+                      setChecked(semuaTerpilih ? new Set() : semuaId)
+                    }} className="text-[10.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors">
+                      {kontakFiltered.every(k => checked.has(k.id)) ? 'Batal semua' : 'Pilih semua'}
+                    </button>
+                  </div>
+                )}
                 <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
                   {kontakFiltered.length === 0 && (
                     <p className="text-[11.5px] text-[#4A453D] text-center py-4">Belum ada kontak</p>
