@@ -350,20 +350,15 @@ export default function WAMassal() {
     setMediaFilename(file.name)
     setMediaMime(file.type)
     try {
-      // Upload langsung ke Fonnte agar URL-nya pasti bisa diakses saat kirim
-      const fonnteToken = token.trim() || (hasEnvToken ? '' : '')
-      const headers: Record<string, string> = { 'x-media-type': file.type, 'x-file-name': file.name }
-      if (fonnteToken) headers['x-fonnte-token'] = fonnteToken
-
-      const res = await fetch('/api/wa-massal/media/fonnte-upload', {
+      const res = await fetch('/api/wa-massal/media', {
         method: 'POST',
-        headers,
+        headers: { 'x-media-type': file.type, 'x-file-name': file.name },
         body: file,
       })
       const data = await res.json()
       if (res.ok) {
         setMediaUrl(data.url)
-        setMediaUploadedFile('')  // file di Fonnte, tidak perlu cleanup lokal
+        setMediaUploadedFile(data.filename) // uuid filename untuk cleanup
       } else {
         alert(data.error || 'Upload gagal')
         resetMedia()
