@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export async function GET() {
+  return NextResponse.json({ hasEnvToken: !!process.env.FONNTE_TOKEN })
+}
+
 export async function POST(req: NextRequest) {
-  const { token, target, message } = await req.json()
+  const { token: bodyToken, target, message } = await req.json()
+  const token = bodyToken?.trim() || process.env.FONNTE_TOKEN
 
   if (!token || !target || !message) {
     return NextResponse.json({ error: 'token, target, dan message wajib diisi' }, { status: 400 })

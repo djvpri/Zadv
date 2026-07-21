@@ -48,6 +48,7 @@ export default function WAMassal() {
   const [token, setToken] = useState('')
   const [tokenSimpan, setTokenSimpan] = useState(false)
   const [showToken, setShowToken] = useState(false)
+  const [hasEnvToken, setHasEnvToken] = useState(false)
   const [nomorRaw, setNomorRaw] = useState('')
   const [pesan, setPesan] = useState('')
   const [delay, setDelay] = useState(5)
@@ -77,6 +78,7 @@ export default function WAMassal() {
   }, [])
 
   useEffect(() => {
+    fetch('/api/wa-massal').then(r => r.json()).then(d => setHasEnvToken(!!d.hasEnvToken))
     const saved = localStorage.getItem('zadv_fonnte_token')
     if (saved) { setToken(saved); setTokenSimpan(true) }
     muatData()
@@ -136,7 +138,7 @@ export default function WAMassal() {
 
   async function kirim() {
     const daftar = parseNomor(nomorRaw)
-    if (!token.trim()) return alert('Masukkan Fonnte API token terlebih dahulu.')
+    if (!token.trim() && !hasEnvToken) return alert('Masukkan Fonnte API token terlebih dahulu.')
     if (daftar.length === 0) return alert('Nomor tujuan tidak valid.')
     if (!pesan.trim()) return alert('Pesan tidak boleh kosong.')
 
@@ -194,39 +196,56 @@ export default function WAMassal() {
         <div className="rounded-lg bg-white/[0.03] border border-white/10 p-5">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-semibold tracking-[0.15em] text-[#8A8378]">FONNTE API TOKEN</p>
-            <a
-              href="https://fonnte.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[10.5px] text-[#D8A23D] hover:underline"
-            >
-              Daftar Fonnte →
-            </a>
+            {!hasEnvToken && (
+              <a
+                href="https://fonnte.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10.5px] text-[#D8A23D] hover:underline"
+              >
+                Daftar Fonnte →
+              </a>
+            )}
           </div>
-          <div className="relative">
-            <input
-              type={showToken ? 'text' : 'password'}
-              value={token}
-              onChange={e => setToken(e.target.value)}
-              placeholder="Tempel token dari dashboard Fonnte..."
-              className="w-full bg-[#161311] border border-white/15 rounded-md px-3 py-2.5 text-[13px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50 pr-20"
-            />
-            <button
-              onClick={() => setShowToken(v => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[#8A8378] hover:text-white"
-            >
-              {showToken ? 'Sembunyikan' : 'Tampilkan'}
-            </button>
-          </div>
-          <label className="flex items-center gap-2 mt-2.5 cursor-pointer w-fit">
-            <input
-              type="checkbox"
-              checked={tokenSimpan}
-              onChange={e => setTokenSimpan(e.target.checked)}
-              className="accent-[#D8A23D]"
-            />
-            <span className="text-[11.5px] text-[#8A8378]">Simpan token di browser ini</span>
-          </label>
+
+          {hasEnvToken ? (
+            <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-emerald-400 shrink-0">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+              </svg>
+              <div>
+                <p className="text-[12.5px] text-emerald-400 font-medium">Token terkonfigurasi</p>
+                <p className="text-[10.5px] text-[#8A8378] mt-0.5">Diambil dari environment variable <code className="font-mono">FONNTE_TOKEN</code></p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <input
+                  type={showToken ? 'text' : 'password'}
+                  value={token}
+                  onChange={e => setToken(e.target.value)}
+                  placeholder="Tempel token dari dashboard Fonnte..."
+                  className="w-full bg-[#161311] border border-white/15 rounded-md px-3 py-2.5 text-[13px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50 pr-20"
+                />
+                <button
+                  onClick={() => setShowToken(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[#8A8378] hover:text-white"
+                >
+                  {showToken ? 'Sembunyikan' : 'Tampilkan'}
+                </button>
+              </div>
+              <label className="flex items-center gap-2 mt-2.5 cursor-pointer w-fit">
+                <input
+                  type="checkbox"
+                  checked={tokenSimpan}
+                  onChange={e => setTokenSimpan(e.target.checked)}
+                  className="accent-[#D8A23D]"
+                />
+                <span className="text-[11.5px] text-[#8A8378]">Simpan token di browser ini</span>
+              </label>
+            </>
+          )}
         </div>
 
         {/* Nomor tujuan */}
@@ -407,7 +426,7 @@ export default function WAMassal() {
           {!berjalan ? (
             <button
               onClick={kirim}
-              disabled={!token || daftar.length === 0 || !pesan.trim()}
+              disabled={(!token && !hasEnvToken) || daftar.length === 0 || !pesan.trim()}
               className="w-full py-3 rounded-md bg-[#25D366] text-white text-[13px] font-bold hover:bg-[#20BD5A] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
