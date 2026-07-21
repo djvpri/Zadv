@@ -235,6 +235,19 @@ export default function WAMassal() {
     setChecked(new Set())
   }
 
+  function tambahGrupKeTujuan(grup: string) {
+    const selected = kontaks.filter(k => k.grup === grup)
+    if (selected.length === 0) return
+    const existing = nomorRaw.trim()
+    const baru = selected.flatMap(k => k.nomor.map(n => '0' + n.replace(/^62/, ''))).join('\n')
+    setNomorRaw(existing ? existing + '\n' + baru : baru)
+    setKontakMap(prev => {
+      const next = new Map(prev)
+      selected.forEach(k => k.nomor.forEach(n => next.set(n, { nama: k.nama, grup: k.grup })))
+      return next
+    })
+  }
+
   function substituteVars(template: string, nomor: string): string {
     const info = kontakMap.get(nomor)
     return template
@@ -702,7 +715,7 @@ export default function WAMassal() {
           <div className="flex border-b border-white/[0.07]">
             {([
               ['kontak', `Kontak (${kontaks.length})`],
-              ['grup', `Grup (${grups.length})`],
+              ['grup', `Grup (${grupLabels.length + grups.length})`],
               ['template', `Template (${templates.length})`],
               ['riwayat', 'Riwayat'],
             ] as const).map(([key, label]) => (
@@ -718,26 +731,19 @@ export default function WAMassal() {
             {/* Panel Kontak */}
             {activePanel === 'kontak' && (
               <div className="flex flex-col gap-3">
-                {/* Filter grup + tambah ke tujuan */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button onClick={() => setFilterGrup('')}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${!filterGrup ? 'bg-[#D8A23D] text-[#1C1917] border-[#D8A23D] font-medium' : 'border-white/15 text-[#8A8378] hover:text-[#E7E2DC] hover:border-white/30'}`}>
-                      Semua
+                {/* Filter + tambah ke tujuan */}
+                <div className="flex items-center gap-2">
+                  <select value={filterGrup} onChange={e => setFilterGrup(e.target.value)}
+                    className="flex-1 text-[11px] bg-[#161311] border border-white/15 rounded px-2 py-1.5 text-[#B3ACA1] outline-none cursor-pointer hover:border-white/30">
+                    <option value="">Semua grup</option>
+                    {grupLabels.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                  {checked.size > 0 && (
+                    <button onClick={tambahKeTujuan}
+                      className="px-3 py-1.5 rounded bg-[#25D366] text-white text-[11px] font-medium hover:bg-[#20BD5A] transition-colors whitespace-nowrap">
+                      + {checked.size} ke Tujuan
                     </button>
-                    {grupLabels.map(g => (
-                      <button key={g} onClick={() => setFilterGrup(filterGrup === g ? '' : g)}
-                        className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${filterGrup === g ? 'bg-[#D8A23D] text-[#1C1917] border-[#D8A23D] font-medium' : 'border-white/15 text-[#8A8378] hover:text-[#E7E2DC] hover:border-white/30'}`}>
-                        {g}
-                      </button>
-                    ))}
-                    {checked.size > 0 && (
-                      <button onClick={tambahKeTujuan}
-                        className="ml-auto px-3 py-1 rounded bg-[#25D366] text-white text-[11px] font-medium hover:bg-[#20BD5A] transition-colors whitespace-nowrap">
-                        + {checked.size} ke Tujuan
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
 
                 {/* List kontak */}
@@ -836,21 +842,55 @@ export default function WAMassal() {
 
             {/* Panel Grup */}
             {activePanel === 'grup' && (
-              <div className="flex flex-col gap-1.5">
-                {grups.length === 0 && <p className="text-[11.5px] text-[#4A453D] text-center py-4">Belum ada grup tersimpan</p>}
-                {grups.map(g => (
-                  <div key={g.id} className="flex items-center gap-2 group">
-                    <button onClick={() => setNomorRaw(g.nomor.map(n => '0' + n.replace(/^62/, '')).join('\n'))}
-                      className="flex-1 text-left flex items-center justify-between px-3 py-2 rounded bg-white/[0.04] hover:bg-white/[0.08] transition-colors border border-white/[0.06]">
-                      <span className="text-[12px] text-[#E7E2DC] truncate">{g.nama}</span>
-                      <span className="text-[10.5px] text-[#8A8378] ml-2 shrink-0">{g.nomor.length} nomor</span>
-                    </button>
-                    <button onClick={() => hapusGrup(g.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-500/20 text-[#8A8378] hover:text-red-400 transition-all">
-                      <IconX />
-                    </button>
+              <div className="flex flex-col gap-3">
+                {/* Grup dari kategori Kontak */}
+                {grupLabels.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[10px] font-semibold tracking-[0.12em] text-[#4A453D]">DARI KONTAK</p>
+                    {grupLabels.map(g => {
+                      const anggota = kontaks.filter(k => k.grup === g)
+                      const total = anggota.reduce((s, k) => s + k.nomor.length, 0)
+                      return (
+                        <div key={g} className="flex items-center gap-2">
+                          <div className="flex-1 flex items-center justify-between px-3 py-2 rounded bg-white/[0.04] border border-white/[0.06]">
+                            <span className="text-[12px] text-[#E7E2DC] truncate">{g}</span>
+                            <span className="text-[10.5px] text-[#8A8378] ml-2 shrink-0">{anggota.length} kontak · {total} nomor</span>
+                          </div>
+                          <button onClick={() => tambahGrupKeTujuan(g)}
+                            className="px-2.5 py-2 rounded bg-[#25D366]/20 text-[#25D366] text-[11px] font-medium hover:bg-[#25D366]/30 transition-colors whitespace-nowrap">
+                            + Tujuan
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
-                ))}
+                )}
+
+                {/* Grup Tersimpan (WaGrupKontak) */}
+                <div className="flex flex-col gap-1.5">
+                  {grupLabels.length > 0 && (
+                    <p className="text-[10px] font-semibold tracking-[0.12em] text-[#4A453D]">TERSIMPAN</p>
+                  )}
+                  {grups.length === 0 && grupLabels.length === 0 && (
+                    <p className="text-[11.5px] text-[#4A453D] text-center py-4">Belum ada grup tersimpan</p>
+                  )}
+                  {grups.length === 0 && grupLabels.length > 0 && (
+                    <p className="text-[11px] text-[#4A453D] italic">Belum ada — simpan dari panel Nomor Tujuan</p>
+                  )}
+                  {grups.map(g => (
+                    <div key={g.id} className="flex items-center gap-2 group">
+                      <button onClick={() => setNomorRaw(g.nomor.map(n => '0' + n.replace(/^62/, '')).join('\n'))}
+                        className="flex-1 text-left flex items-center justify-between px-3 py-2 rounded bg-white/[0.04] hover:bg-white/[0.08] transition-colors border border-white/[0.06]">
+                        <span className="text-[12px] text-[#E7E2DC] truncate">{g.nama}</span>
+                        <span className="text-[10.5px] text-[#8A8378] ml-2 shrink-0">{g.nomor.length} nomor</span>
+                      </button>
+                      <button onClick={() => hapusGrup(g.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-500/20 text-[#8A8378] hover:text-red-400 transition-all">
+                        <IconX />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
