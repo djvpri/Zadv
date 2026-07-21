@@ -147,6 +147,7 @@ export default function WAMassal() {
   const [mediaMime, setMediaMime] = useState('')
   const [mediaUploading, setMediaUploading] = useState(false)
   const [mediaUploadedFile, setMediaUploadedFile] = useState('')  // nama file di server
+  const [urlSimpan, setUrlSimpan] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pesanRef = useRef<HTMLTextAreaElement>(null)
 
@@ -231,13 +232,15 @@ export default function WAMassal() {
       setMediaUrl(t.mediaUrl)
       setMediaFilename(t.mediaFilename || '')
       setMediaMime(t.mediaMime || '')
-      setMediaUploadedFile('') // file milik template, jangan auto-delete saat reset
+      setMediaUploadedFile('')
+      setUrlSimpan(!isInternal) // URL eksternal langsung anggap sudah disimpan
     } else {
       setMediaMode('none')
       setMediaUrl('')
       setMediaFilename('')
       setMediaMime('')
       setMediaUploadedFile('')
+      setUrlSimpan(false)
     }
   }
 
@@ -380,6 +383,20 @@ export default function WAMassal() {
         body: JSON.stringify({ filename: mediaUploadedFile }),
       }).catch(() => {})
     }
+    setUrlSimpan(false)
+  }
+
+  function simpanUrl() {
+    if (!mediaUrl.trim()) return
+    const ext = mediaUrl.split('?')[0].split('.').pop()?.toLowerCase() || ''
+    const mimeMap: Record<string, string> = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+      webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf', mp4: 'video/mp4',
+    }
+    const guessedMime = mimeMap[ext] || 'image/jpeg'
+    if (!mediaMime) setMediaMime(guessedMime)
+    if (!mediaFilename) setMediaFilename(mediaUrl.split('/').pop()?.split('?')[0] || 'file')
+    setUrlSimpan(true)
   }
 
   async function kirim() {
@@ -684,13 +701,31 @@ export default function WAMassal() {
 
           {mediaMode === 'url' && (
             <div className="flex flex-col gap-2">
-              <input type="url" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)}
-                placeholder="https://contoh.com/gambar.jpg"
-                className="w-full bg-[#161311] border border-white/15 rounded-md px-3 py-2.5 text-[13px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
-              <input type="text" value={mediaFilename} onChange={e => setMediaFilename(e.target.value)}
-                placeholder="Nama file (opsional, untuk PDF)"
-                className="w-full bg-[#161311] border border-white/15 rounded-md px-3 py-2.5 text-[13px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
-              <p className="text-[10.5px] text-[#4A453D]">URL harus dapat diakses publik. Fonnte akan mengambil dan mengirimkan file-nya.</p>
+              {urlSimpan ? (
+                <>
+                  <MediaPreview mime={mediaMime} filename={mediaFilename} url={mediaUrl} />
+                  <button onClick={() => setUrlSimpan(false)}
+                    className="text-[11px] text-[#8A8378] hover:text-[#D8A23D] transition-colors text-left">
+                    Ubah URL
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input autoFocus type="url" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && simpanUrl()}
+                    placeholder="https://contoh.com/gambar.jpg"
+                    className="w-full bg-[#161311] border border-white/15 rounded-md px-3 py-2.5 text-[13px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
+                  <input type="text" value={mediaFilename} onChange={e => setMediaFilename(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && simpanUrl()}
+                    placeholder="Nama file (opsional, untuk PDF)"
+                    className="w-full bg-[#161311] border border-white/15 rounded-md px-3 py-2.5 text-[13px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
+                  <button onClick={simpanUrl} disabled={!mediaUrl.trim()}
+                    className="w-full py-2 rounded-md bg-[#D8A23D] text-[#1C1917] text-[12px] font-medium hover:bg-[#C89230] disabled:opacity-40 transition-colors">
+                    Simpan URL
+                  </button>
+                  <p className="text-[10.5px] text-[#4A453D]">URL harus dapat diakses publik. Fonnte akan mengambil dan mengirimkan file-nya.</p>
+                </>
+              )}
             </div>
           )}
         </div>
