@@ -196,12 +196,19 @@ export default function WAMassal() {
     const nomorArr = formNomors.map(n => normalisiNomor(n)).filter(n => n.length >= 10)
     if (!formNama.trim() || nomorArr.length === 0) return
     setTambahLoading(true)
-    await fetch('/api/wa-massal/kontak', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nama: formNama.trim(), nomor: nomorArr, grup: formGrup.trim() || null }),
-    })
-    setFormNama(''); setFormNomors(['']); setFormGrup(''); setTambahLoading(false)
-    muatData()
+    try {
+      const res = await fetch('/api/wa-massal/kontak', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nama: formNama.trim(), nomor: nomorArr, grup: formGrup.trim() || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error || 'Gagal menyimpan kontak'); setTambahLoading(false); return }
+      setFormNama(''); setFormNomors(['']); setFormGrup('')
+      await muatData()
+    } catch {
+      alert('Koneksi error — gagal menyimpan kontak')
+    }
+    setTambahLoading(false)
   }
 
   async function hapusKontak(id: number) {
