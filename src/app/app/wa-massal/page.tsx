@@ -624,9 +624,10 @@ export default function WAMassal() {
   const contohPesan = contohNomor ? substituteVars(pesan, contohNomor) : pesan
 
   const grupLabels = Array.from(new Set(kontaks.map(k => k.grup).filter(Boolean))) as string[]
+  const cariDigit = cariKontak.replace(/\D/g, '')
   const kontakFiltered = kontaks
     .filter(k => !filterGrup || k.grup === filterGrup)
-    .filter(k => !cariKontak.trim() || k.nama.toLowerCase().includes(cariKontak.toLowerCase()) || k.nomor.some(n => n.includes(cariKontak.replace(/\D/g, ''))))
+    .filter(k => !cariKontak.trim() || k.nama.toLowerCase().includes(cariKontak.trim().toLowerCase()) || (cariDigit.length > 0 && k.nomor.some(n => n.includes(cariDigit))))
 
   const IconX = () => (
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
