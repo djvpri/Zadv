@@ -3,17 +3,29 @@ import { MAX_WA_MEDIA_BYTES, TIPE_DIIZINKAN } from '@/lib/wa-media-storage'
 
 export const runtime = 'nodejs'
 
-// Upload ke Telegraph (telegra.ph) — gratis, tanpa API key, URL permanen
+// Buat multipart body manual — Node.js native FormData+Blob kadang 400 di Telegraph
+function buatMultipart(buffer: Buffer, mime: string, filename: string) {
+  const boundary = 'TelegraphBoundary7x9k2m'
+  const head = Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mime}\r\n\r\n`
+  )
+  const tail = Buffer.from(`\r\n--${boundary}--\r\n`)
+  const body = Buffer.concat([head, buffer, tail])
+  return { body, contentType: `multipart/form-data; boundary=${boundary}` }
+}
+
 async function uploadKeTelegraph(buffer: Buffer, mime: string, filename: string): Promise<string> {
-  const form = new FormData()
-  const blob = new Blob([buffer], { type: mime })
-  form.append('file', blob, filename)
+  const { body, contentType } = buatMultipart(buffer, mime, filename)
 
   const res = await fetch('https://telegra.ph/upload', {
     method: 'POST',
-    body: form,
+    headers: { 'Content-Type': contentType },
+    body,
   })
-  if (!res.ok) throw new Error(`Telegraph HTTP ${res.status}`)
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '')
+    throw new Error(`Telegraph HTTP ${res.status}: ${txt.slice(0, 100)}`)
+  }
   const data = await res.json()
   // Response: [{ "src": "/file/xxx.jpg" }]
   if (!Array.isArray(data) || !data[0]?.src) throw new Error('Response Telegraph tidak valid')
@@ -27,7 +39,6 @@ export async function POST(req: NextRequest) {
     const ext = TIPE_DIIZINKAN[baseType]
     if (!ext) return NextResponse.json({ error: `Tipe tidak didukung: ${baseType}` }, { status: 400 })
 
-    // Telegraph hanya support gambar
     if (!baseType.startsWith('image/')) {
       return NextResponse.json({ error: 'Telegraph hanya support gambar. Untuk PDF/video gunakan mode URL eksternal.' }, { status: 400 })
     }

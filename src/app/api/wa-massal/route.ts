@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 
+function buatMultipart(buffer: Buffer, mime: string, filename: string) {
+  const boundary = 'TelegraphBoundary7x9k2m'
+  const head = Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mime}\r\n\r\n`
+  )
+  const tail = Buffer.from(`\r\n--${boundary}--\r\n`)
+  return {
+    body: Buffer.concat([head, buffer, tail]),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  }
+}
+
 // Proxy URL gambar ke Telegraph agar Fonnte bisa download tanpa hotlink block
 async function proxyKeTelegraph(sourceUrl: string): Promise<string> {
   const res = await fetch(sourceUrl, { signal: AbortSignal.timeout(10000) })
@@ -10,9 +22,12 @@ async function proxyKeTelegraph(sourceUrl: string): Promise<string> {
   const buffer = Buffer.from(await res.arrayBuffer())
   const ext = mime.split('/')[1] || 'jpg'
 
-  const form = new FormData()
-  form.append('file', new Blob([buffer], { type: mime }), `proxy.${ext}`)
-  const tRes = await fetch('https://telegra.ph/upload', { method: 'POST', body: form })
+  const { body, contentType } = buatMultipart(buffer, mime, `proxy.${ext}`)
+  const tRes = await fetch('https://telegra.ph/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': contentType },
+    body,
+  })
   if (!tRes.ok) throw new Error(`Telegraph HTTP ${tRes.status}`)
   const data = await tRes.json()
   if (!Array.isArray(data) || !data[0]?.src) throw new Error('Response Telegraph tidak valid')
