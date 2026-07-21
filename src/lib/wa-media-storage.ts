@@ -2,7 +2,7 @@ import path from 'path'
 import { promises as fs } from 'fs'
 
 export function getWaMediaDir(): string {
-  return process.env.WA_MEDIA_DIR || path.join(process.cwd(), '.tmp-wa-media')
+  return process.env.WA_MEDIA_DIR || '/data/wa-media'
 }
 
 export async function pastikanWaMediaDir(): Promise<string> {
