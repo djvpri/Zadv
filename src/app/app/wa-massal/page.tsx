@@ -143,6 +143,15 @@ export default function WAMassal() {
   const [gmapsHasil, setGmapsHasil] = useState<{ id: string; nama: string; nomor: string; nomorRaw: string; alamat: string }[]>([])
   const [gmapsPilih, setGmapsPilih] = useState<Set<string>>(new Set())
   const [gmapsImporting, setGmapsImporting] = useState(false)
+  // TikTok import
+  const [showTiktok, setShowTiktok] = useState(false)
+  const [tiktokMode, setTiktokMode] = useState<'bio' | 'paste'>('paste')
+  const [tiktokU, setTiktokU] = useState('')
+  const [tiktokTeks, setTiktokTeks] = useState('')
+  const [tiktokLoading, setTiktokLoading] = useState(false)
+  const [tiktokHasil, setTiktokHasil] = useState<{ nomor: string; nama: string }[]>([])
+  const [tiktokPilih, setTiktokPilih] = useState<Set<string>>(new Set())
+  const [tiktokImporting, setTiktokImporting] = useState(false)
   const [riwayat, setRiwayat] = useState<WaRiwayat[]>([])
   const [bulanan, setBulanan] = useState(0)
 
@@ -307,6 +316,59 @@ export default function WAMassal() {
     await muatData()
     setGmapsImporting(false)
     setGmapsPilih(new Set())
+    alert(`${berhasil} kontak berhasil diimport`)
+  }
+
+  async function cariTiktok() {
+    setTiktokLoading(true)
+    setTiktokHasil([])
+    setTiktokPilih(new Set())
+    try {
+      if (tiktokMode === 'bio') {
+        if (!tiktokU.trim()) return
+        const res = await fetch(`/api/wa-massal/tiktok?u=${encodeURIComponent(tiktokU.trim())}`)
+        const data = await res.json()
+        if (!res.ok) { alert(data.error || 'Gagal'); return }
+        const list = (data.nomors as string[]).map((n: string) => ({ nomor: n, nama: data.nama || tiktokU }))
+        setTiktokHasil(list)
+        if (list.length === 0) alert('Tidak ada nomor HP ditemukan di bio akun ini')
+      } else {
+        if (!tiktokTeks.trim()) return
+        const res = await fetch('/api/wa-massal/tiktok', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teks: tiktokTeks }),
+        })
+        const data = await res.json()
+        if (!res.ok) { alert(data.error || 'Gagal'); return }
+        const list = (data.nomors as string[]).map((n: string) => ({ nomor: n, nama: '' }))
+        setTiktokHasil(list)
+        if (list.length === 0) alert('Tidak ada nomor HP ditemukan dalam teks yang di-paste')
+      }
+    } catch { alert('Koneksi error') }
+    setTiktokLoading(false)
+  }
+
+  async function importTiktok() {
+    const dipilih = tiktokHasil.filter(p => tiktokPilih.has(p.nomor))
+    if (dipilih.length === 0) return
+    setTiktokImporting(true)
+    let berhasil = 0
+    for (const p of dipilih) {
+      try {
+        const res = await fetch('/api/wa-massal/kontak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nama: p.nama || p.nomor, nomor: [p.nomor], grup: '' }),
+        })
+        if (res.ok) berhasil++
+      } catch { /* skip */ }
+    }
+    await muatData()
+    setTiktokImporting(false)
+    setTiktokPilih(new Set())
+    setTiktokHasil([])
+    setTiktokTeks('')
     alert(`${berhasil} kontak berhasil diimport`)
   }
 
@@ -984,16 +1046,22 @@ export default function WAMassal() {
 
                 {/* Form tambah kontak */}
                 {!showTambahKontak ? (
-                  <div className="flex gap-3 mt-1">
-                    <button onClick={() => { setShowTambahKontak(true); setShowGmaps(false) }}
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                    <button onClick={() => { setShowTambahKontak(true); setShowGmaps(false); setShowTiktok(false) }}
                       className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors">
                       + Tambah kontak baru
                     </button>
                     <span className="text-[#4A453D]">·</span>
-                    <button onClick={() => { setShowGmaps(v => !v); setShowTambahKontak(false) }}
+                    <button onClick={() => { setShowGmaps(v => !v); setShowTambahKontak(false); setShowTiktok(false) }}
                       className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors flex items-center gap-1">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                      Import GMaps
+                      GMaps
+                    </button>
+                    <span className="text-[#4A453D]">·</span>
+                    <button onClick={() => { setShowTiktok(v => !v); setShowGmaps(false); setShowTambahKontak(false) }}
+                      className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors flex items-center gap-1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.79 1.54V6.78a4.85 4.85 0 0 1-1.02-.09z"/></svg>
+                      TikTok
                     </button>
                   </div>
                 ) : (
@@ -1113,6 +1181,92 @@ export default function WAMassal() {
 
                     {!gmapsLoading && gmapsHasil.length === 0 && gmapsQ && (
                       <p className="text-[11px] text-[#4A453D] text-center py-2">Belum ada hasil — coba kata kunci lain</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Panel Import TikTok */}
+                {showTiktok && (
+                  <div className="flex flex-col gap-2 pt-2 border-t border-white/[0.06]">
+                    <p className="text-[10px] font-semibold tracking-[0.12em] text-[#4A453D]">IMPORT DARI TIKTOK</p>
+
+                    {/* Mode tabs */}
+                    <div className="flex gap-1 p-0.5 bg-white/[0.04] rounded-md">
+                      {(['paste', 'bio'] as const).map(m => (
+                        <button key={m} onClick={() => { setTiktokMode(m); setTiktokHasil([]); setTiktokPilih(new Set()) }}
+                          className={`flex-1 py-1 rounded text-[11.5px] font-medium transition-colors ${
+                            tiktokMode === m ? 'bg-[#D8A23D] text-[#1C1917]' : 'text-[#8A8378] hover:text-white'
+                          }`}>
+                          {m === 'paste' ? 'Paste Teks' : 'Dari Bio'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {tiktokMode === 'paste' ? (
+                      <>
+                        <p className="text-[10.5px] text-[#8A8378]">
+                          Copy komentar, bio, atau teks dari TikTok lalu paste di sini. Nomor HP akan diekstrak otomatis.
+                        </p>
+                        <textarea value={tiktokTeks} onChange={e => setTiktokTeks(e.target.value)}
+                          rows={4} placeholder="Paste teks dari TikTok di sini..."
+                          className="w-full bg-[#161311] border border-white/15 rounded px-3 py-2 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50 resize-none font-mono" />
+                        <button onClick={cariTiktok} disabled={tiktokLoading || !tiktokTeks.trim()}
+                          className="w-full py-1.5 rounded bg-[#D8A23D] text-[#1C1917] text-[12px] font-medium hover:bg-[#C89230] disabled:opacity-50 transition-colors">
+                          {tiktokLoading ? 'Mencari...' : 'Ekstrak Nomor HP'}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[10.5px] text-[#8A8378]">
+                          Masukkan username TikTok. Nomor HP akan diambil dari kolom bio profil.
+                        </p>
+                        <div className="flex gap-1.5">
+                          <input type="text" value={tiktokU} onChange={e => setTiktokU(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && cariTiktok()}
+                            placeholder="@username atau tiktok.com/@username"
+                            className="flex-1 bg-[#161311] border border-white/15 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
+                          <button onClick={cariTiktok} disabled={tiktokLoading || !tiktokU.trim()}
+                            className="px-3 py-1.5 rounded bg-[#D8A23D] text-[#1C1917] text-[12px] font-medium hover:bg-[#C89230] disabled:opacity-50 transition-colors whitespace-nowrap">
+                            {tiktokLoading ? '...' : 'Ambil'}
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {tiktokHasil.length > 0 && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-[#8A8378]">{tiktokHasil.length} nomor ditemukan</span>
+                          <button onClick={() => setTiktokPilih(
+                            tiktokPilih.size === tiktokHasil.length ? new Set() : new Set(tiktokHasil.map(p => p.nomor))
+                          )} className="text-[11px] text-[#D8A23D] hover:text-[#C89230] transition-colors">
+                            {tiktokPilih.size === tiktokHasil.length ? 'Hapus semua' : 'Pilih semua'}
+                          </button>
+                        </div>
+                        <div className="flex flex-col gap-1 max-h-44 overflow-y-auto">
+                          {tiktokHasil.map((p, i) => (
+                            <div key={i} onClick={() => setTiktokPilih(prev => {
+                              const s = new Set(prev); s.has(p.nomor) ? s.delete(p.nomor) : s.add(p.nomor); return s
+                            })} className={`flex items-center gap-2 px-2.5 py-2 rounded border cursor-pointer transition-colors ${
+                              tiktokPilih.has(p.nomor) ? 'border-[#D8A23D]/40 bg-[#D8A23D]/5' : 'border-white/[0.06] bg-white/[0.02] hover:border-white/20'
+                            }`}>
+                              <input type="checkbox" readOnly checked={tiktokPilih.has(p.nomor)} className="accent-[#D8A23D] shrink-0 cursor-pointer" />
+                              <div className="flex-1 min-w-0">
+                                {p.nama && p.nama !== p.nomor && (
+                                  <p className="text-[11.5px] text-[#E7E2DC] truncate">{p.nama}</p>
+                                )}
+                                <p className="text-[12px] font-mono text-[#25D366]">+{p.nomor}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {tiktokPilih.size > 0 && (
+                          <button onClick={importTiktok} disabled={tiktokImporting}
+                            className="w-full py-1.5 rounded bg-[#25D366] text-white text-[12px] font-medium hover:bg-[#20BD5A] disabled:opacity-50 transition-colors">
+                            {tiktokImporting ? 'Mengimport...' : `Import ${tiktokPilih.size} kontak`}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
