@@ -3,42 +3,46 @@ import { MAX_WA_MEDIA_BYTES, TIPE_DIIZINKAN } from '@/lib/wa-media-storage'
 
 export const runtime = 'nodejs'
 
+// Upload ke Telegraph (telegra.ph) — gratis, tanpa API key, URL permanen
+async function uploadKeTelegraph(buffer: Buffer, mime: string, filename: string): Promise<string> {
+  const form = new FormData()
+  const blob = new Blob([buffer], { type: mime })
+  form.append('file', blob, filename)
+
+  const res = await fetch('https://telegra.ph/upload', {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) throw new Error(`Telegraph HTTP ${res.status}`)
+  const data = await res.json()
+  // Response: [{ "src": "/file/xxx.jpg" }]
+  if (!Array.isArray(data) || !data[0]?.src) throw new Error('Response Telegraph tidak valid')
+  return `https://telegra.ph${data[0].src}`
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get('x-fonnte-token') || process.env.FONNTE_TOKEN
-    if (!token) return NextResponse.json({ error: 'Token Fonnte tidak ditemukan' }, { status: 400 })
-
     const mime = req.headers.get('x-media-type') || ''
     const baseType = mime.split(';')[0].trim()
     const ext = TIPE_DIIZINKAN[baseType]
     if (!ext) return NextResponse.json({ error: `Tipe tidak didukung: ${baseType}` }, { status: 400 })
+
+    // Telegraph hanya support gambar
+    if (!baseType.startsWith('image/')) {
+      return NextResponse.json({ error: 'Telegraph hanya support gambar. Untuk PDF/video gunakan mode URL eksternal.' }, { status: 400 })
+    }
 
     const buffer = Buffer.from(await req.arrayBuffer())
     if (buffer.length === 0) return NextResponse.json({ error: 'File kosong' }, { status: 400 })
     if (buffer.length > MAX_WA_MEDIA_BYTES) return NextResponse.json({ error: 'File terlalu besar (maks 16MB)' }, { status: 400 })
 
     const originalName = req.headers.get('x-file-name') || `file.${ext}`
+    const url = await uploadKeTelegraph(buffer, baseType, originalName)
 
-    const form = new FormData()
-    const blob = new Blob([buffer], { type: baseType })
-    form.append('file', blob, originalName)
-
-    const res = await fetch('https://api.fonnte.com/upload-file', {
-      method: 'POST',
-      headers: { 'Authorization': token },
-      body: form,
-    })
-
-    const data = await res.json()
-    console.log('[fonnte-upload] response:', JSON.stringify(data))
-
-    if (data.status === true && data.url) {
-      return NextResponse.json({ url: data.url, filename: originalName, mime: baseType })
-    } else {
-      return NextResponse.json({ error: data.reason || data.message || 'Upload ke Fonnte gagal' }, { status: 400 })
-    }
+    console.log('[telegraph-upload] url:', url)
+    return NextResponse.json({ url, filename: originalName, mime: baseType })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    return NextResponse.json({ error: `Error: ${msg}` }, { status: 500 })
+    return NextResponse.json({ error: `Upload gagal: ${msg}` }, { status: 500 })
   }
 }
