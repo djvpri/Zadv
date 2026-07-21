@@ -124,6 +124,7 @@ export default function WAMassal() {
   // Kontak individual
   const [kontaks, setKontaks] = useState<WaKontak[]>([])
   const [filterGrup, setFilterGrup] = useState('')
+  const [cariKontak, setCariKontak] = useState('')
   const [checked, setChecked] = useState<Set<number>>(new Set())
   const [kontakMap, setKontakMap] = useState<Map<string, { nama: string; grup: string | null }>>(new Map())
   const [showTambahKontak, setShowTambahKontak] = useState(false)
@@ -623,7 +624,9 @@ export default function WAMassal() {
   const contohPesan = contohNomor ? substituteVars(pesan, contohNomor) : pesan
 
   const grupLabels = Array.from(new Set(kontaks.map(k => k.grup).filter(Boolean))) as string[]
-  const kontakFiltered = filterGrup ? kontaks.filter(k => k.grup === filterGrup) : kontaks
+  const kontakFiltered = kontaks
+    .filter(k => !filterGrup || k.grup === filterGrup)
+    .filter(k => !cariKontak.trim() || k.nama.toLowerCase().includes(cariKontak.toLowerCase()) || k.nomor.some(n => n.includes(cariKontak.replace(/\D/g, ''))))
 
   const IconX = () => (
     <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
@@ -1039,19 +1042,34 @@ export default function WAMassal() {
             {/* Panel Kontak */}
             {activePanel === 'kontak' && (
               <div className="flex flex-col gap-3">
-                {/* Filter + tambah ke tujuan */}
-                <div className="flex items-center gap-2">
-                  <select value={filterGrup} onChange={e => setFilterGrup(e.target.value)}
-                    className="flex-1 text-[11px] bg-[#161311] border border-white/15 rounded px-2 py-1.5 text-[#B3ACA1] outline-none cursor-pointer hover:border-white/30">
-                    <option value="">Semua grup</option>
-                    {grupLabels.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                  {checked.size > 0 && (
-                    <button onClick={tambahKeTujuan}
-                      className="px-3 py-1.5 rounded bg-[#25D366] text-white text-[11px] font-medium hover:bg-[#20BD5A] transition-colors whitespace-nowrap">
-                      + {checked.size} ke Tujuan
-                    </button>
-                  )}
+                {/* Filter + cari + tambah ke tujuan */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="relative">
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#4A453D] pointer-events-none">
+                      <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                    </svg>
+                    <input type="text" value={cariKontak} onChange={e => setCariKontak(e.target.value)}
+                      placeholder="Cari nama atau nomor..."
+                      className="w-full bg-[#161311] border border-white/15 rounded pl-8 pr-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
+                    {cariKontak && (
+                      <button onClick={() => setCariKontak('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4A453D] hover:text-white transition-colors">
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select value={filterGrup} onChange={e => setFilterGrup(e.target.value)}
+                      className="flex-1 text-[11px] bg-[#161311] border border-white/15 rounded px-2 py-1.5 text-[#B3ACA1] outline-none cursor-pointer hover:border-white/30">
+                      <option value="">Semua grup</option>
+                      {grupLabels.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                    {checked.size > 0 && (
+                      <button onClick={tambahKeTujuan}
+                        className="px-3 py-1.5 rounded bg-[#25D366] text-white text-[11px] font-medium hover:bg-[#20BD5A] transition-colors whitespace-nowrap">
+                        + {checked.size} ke Tujuan
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Ide 1: Toolbar aksi massal */}
