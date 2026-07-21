@@ -61,6 +61,10 @@ function MediaPreview({ mime, filename, url }: { mime: string; filename: string;
       <div className="flex-1 min-w-0">
         <p className="text-[12.5px] text-[#E7E2DC] truncate font-medium">{filename}</p>
         <p className="text-[10.5px] text-[#8A8378] mt-0.5">{mime}</p>
+        <a href={url} target="_blank" rel="noopener noreferrer"
+          className="text-[10px] text-[#D8A23D] hover:underline break-all mt-1 block leading-relaxed">
+          {url}
+        </a>
       </div>
       <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-emerald-400 shrink-0">
         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
