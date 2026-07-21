@@ -136,7 +136,12 @@ export default function WAMassal() {
   const [editGrup, setEditGrup] = useState('')
   const [editLoading, setEditLoading] = useState(false)
   const [activePanel, setActivePanel] = useState<'kontak' | 'grup' | 'template' | 'riwayat'>('kontak')
+  // Bulk kontak
+  const [assignGrupVal, setAssignGrupVal] = useState('')
+  const [assignGrupBaru, setAssignGrupBaru] = useState('')
+  const [kelolaGrupLabel, setKelolaGrupLabel] = useState<string | null>(null)
   // GMaps import
+  const [gmapsGrup, setGmapsGrup] = useState('')
   const [showGmaps, setShowGmaps] = useState(false)
   const [gmapsQ, setGmapsQ] = useState('')
   const [gmapsLoading, setGmapsLoading] = useState(false)
@@ -144,6 +149,7 @@ export default function WAMassal() {
   const [gmapsPilih, setGmapsPilih] = useState<Set<string>>(new Set())
   const [gmapsImporting, setGmapsImporting] = useState(false)
   // TikTok import
+  const [tiktokGrup, setTiktokGrup] = useState('')
   const [showTiktok, setShowTiktok] = useState(false)
   const [tiktokMode, setTiktokMode] = useState<'bio' | 'paste'>('paste')
   const [tiktokU, setTiktokU] = useState('')
@@ -284,6 +290,55 @@ export default function WAMassal() {
     setChecked(prev => { const s = new Set(prev); s.delete(id); return s })
   }
 
+  async function assignKontakKeGrup() {
+    const grup = assignGrupVal === '__baru__' ? assignGrupBaru.trim() : assignGrupVal.trim()
+    if (!grup) return
+    const ids = [...checked]
+    await fetch('/api/wa-massal/kontak/bulk', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, grup }),
+    })
+    await muatData()
+    setChecked(new Set())
+    setAssignGrupVal('')
+    setAssignGrupBaru('')
+  }
+
+  async function hapusKontakMassal() {
+    if (!confirm(`Hapus ${checked.size} kontak terpilih?`)) return
+    const ids = [...checked]
+    await fetch('/api/wa-massal/kontak/bulk', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    await muatData()
+    setChecked(new Set())
+  }
+
+  async function tambahKeGrupLabel(kontakId: number, grup: string) {
+    const k = kontaks.find(x => x.id === kontakId)
+    if (!k) return
+    await fetch(`/api/wa-massal/kontak/${kontakId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nama: k.nama, nomor: k.nomor, grup }),
+    })
+    await muatData()
+  }
+
+  async function hapusDariGrupLabel(kontakId: number) {
+    const k = kontaks.find(x => x.id === kontakId)
+    if (!k) return
+    await fetch(`/api/wa-massal/kontak/${kontakId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nama: k.nama, nomor: k.nomor, grup: null }),
+    })
+    await muatData()
+  }
+
   async function cariGmaps() {
     if (!gmapsQ.trim()) return
     setGmapsLoading(true)
@@ -308,7 +363,7 @@ export default function WAMassal() {
         const res = await fetch('/api/wa-massal/kontak', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nama: p.nama, nomor: [p.nomor], grup: '' }),
+          body: JSON.stringify({ nama: p.nama, nomor: [p.nomor], grup: gmapsGrup.trim() || null }),
         })
         if (res.ok) berhasil++
       } catch { /* skip */ }
@@ -359,7 +414,7 @@ export default function WAMassal() {
         const res = await fetch('/api/wa-massal/kontak', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nama: p.nama || p.nomor, nomor: [p.nomor], grup: '' }),
+          body: JSON.stringify({ nama: p.nama || p.nomor, nomor: [p.nomor], grup: tiktokGrup.trim() || null }),
         })
         if (res.ok) berhasil++
       } catch { /* skip */ }
@@ -962,6 +1017,38 @@ export default function WAMassal() {
                   )}
                 </div>
 
+                {/* Ide 1: Toolbar aksi massal */}
+                {checked.size > 0 && (
+                  <div className="flex flex-col gap-2 px-3 py-2.5 rounded-lg bg-[#D8A23D]/8 border border-[#D8A23D]/20">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-[#D8A23D]">{checked.size} kontak dipilih</span>
+                      <button onClick={() => setChecked(new Set())} className="text-[10px] text-[#8A8378] hover:text-white transition-colors">Batal pilih</button>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <select value={assignGrupVal} onChange={e => setAssignGrupVal(e.target.value)}
+                        className="flex-1 text-[11px] bg-[#161311] border border-white/15 rounded px-2 py-1.5 text-[#B3ACA1] outline-none cursor-pointer hover:border-[#D8A23D]/40">
+                        <option value="">Pilih grup...</option>
+                        {grupLabels.map(g => <option key={g} value={g}>{g}</option>)}
+                        <option value="__baru__">+ Grup baru...</option>
+                      </select>
+                      <button onClick={assignKontakKeGrup} disabled={!assignGrupVal || (assignGrupVal === '__baru__' && !assignGrupBaru.trim())}
+                        className="px-2.5 py-1.5 rounded bg-[#D8A23D] text-[#1C1917] text-[11px] font-medium hover:bg-[#C89230] disabled:opacity-40 transition-colors whitespace-nowrap">
+                        Pindahkan
+                      </button>
+                      <button onClick={hapusKontakMassal}
+                        className="px-2.5 py-1.5 rounded bg-red-500/20 text-red-400 text-[11px] font-medium hover:bg-red-500/30 transition-colors">
+                        Hapus
+                      </button>
+                    </div>
+                    {assignGrupVal === '__baru__' && (
+                      <input type="text" value={assignGrupBaru} onChange={e => setAssignGrupBaru(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && assignKontakKeGrup()}
+                        autoFocus placeholder="Nama grup baru..."
+                        className="w-full bg-[#161311] border border-[#D8A23D]/40 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none" />
+                    )}
+                  </div>
+                )}
+
                 {/* List kontak */}
                 <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
                   {kontakFiltered.length === 0 && (
@@ -1171,10 +1258,15 @@ export default function WAMassal() {
                           ))}
                         </div>
                         {gmapsPilih.size > 0 && (
-                          <button onClick={importGmaps} disabled={gmapsImporting}
-                            className="w-full py-1.5 rounded bg-[#25D366] text-white text-[12px] font-medium hover:bg-[#20BD5A] disabled:opacity-50 transition-colors">
-                            {gmapsImporting ? 'Mengimport...' : `Import ${gmapsPilih.size} kontak`}
-                          </button>
+                          <div className="flex gap-1.5">
+                            <input type="text" value={gmapsGrup} onChange={e => setGmapsGrup(e.target.value)}
+                              list="grup-list" placeholder="Masukkan ke grup (opsional)"
+                              className="flex-1 bg-[#161311] border border-white/15 rounded px-2.5 py-1.5 text-[11.5px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
+                            <button onClick={importGmaps} disabled={gmapsImporting}
+                              className="px-3 py-1.5 rounded bg-[#25D366] text-white text-[12px] font-medium hover:bg-[#20BD5A] disabled:opacity-50 transition-colors whitespace-nowrap">
+                              {gmapsImporting ? '...' : `Import ${gmapsPilih.size}`}
+                            </button>
+                          </div>
                         )}
                       </>
                     )}
@@ -1261,10 +1353,15 @@ export default function WAMassal() {
                           ))}
                         </div>
                         {tiktokPilih.size > 0 && (
-                          <button onClick={importTiktok} disabled={tiktokImporting}
-                            className="w-full py-1.5 rounded bg-[#25D366] text-white text-[12px] font-medium hover:bg-[#20BD5A] disabled:opacity-50 transition-colors">
-                            {tiktokImporting ? 'Mengimport...' : `Import ${tiktokPilih.size} kontak`}
-                          </button>
+                          <div className="flex gap-1.5">
+                            <input type="text" value={tiktokGrup} onChange={e => setTiktokGrup(e.target.value)}
+                              list="grup-list" placeholder="Masukkan ke grup (opsional)"
+                              className="flex-1 bg-[#161311] border border-white/15 rounded px-2.5 py-1.5 text-[11.5px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
+                            <button onClick={importTiktok} disabled={tiktokImporting}
+                              className="px-3 py-1.5 rounded bg-[#25D366] text-white text-[12px] font-medium hover:bg-[#20BD5A] disabled:opacity-50 transition-colors whitespace-nowrap">
+                              {tiktokImporting ? '...' : `Import ${tiktokPilih.size}`}
+                            </button>
+                          </div>
                         )}
                       </>
                     )}
@@ -1282,17 +1379,68 @@ export default function WAMassal() {
                     <p className="text-[10px] font-semibold tracking-[0.12em] text-[#4A453D]">DARI KONTAK</p>
                     {grupLabels.map(g => {
                       const anggota = kontaks.filter(k => k.grup === g)
+                      const bukan = kontaks.filter(k => k.grup !== g)
                       const total = anggota.reduce((s, k) => s + k.nomor.length, 0)
+                      const sedangKelola = kelolaGrupLabel === g
                       return (
-                        <div key={g} className="flex items-center gap-2">
-                          <div className="flex-1 flex items-center justify-between px-3 py-2 rounded bg-white/[0.04] border border-white/[0.06]">
-                            <span className="text-[12px] text-[#E7E2DC] truncate">{g}</span>
-                            <span className="text-[10.5px] text-[#8A8378] ml-2 shrink-0">{anggota.length} kontak · {total} nomor</span>
+                        <div key={g} className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 flex items-center justify-between px-3 py-2 rounded bg-white/[0.04] border border-white/[0.06]">
+                              <span className="text-[12px] text-[#E7E2DC] truncate">{g}</span>
+                              <span className="text-[10.5px] text-[#8A8378] ml-2 shrink-0">{anggota.length} kontak · {total} nomor</span>
+                            </div>
+                            <button onClick={() => tambahGrupKeTujuan(g)}
+                              className="px-2.5 py-2 rounded bg-[#25D366]/20 text-[#25D366] text-[11px] font-medium hover:bg-[#25D366]/30 transition-colors whitespace-nowrap">
+                              + Tujuan
+                            </button>
+                            <button onClick={() => setKelolaGrupLabel(sedangKelola ? null : g)}
+                              className={`px-2.5 py-2 rounded text-[11px] font-medium transition-colors whitespace-nowrap ${sedangKelola ? 'bg-[#D8A23D]/20 text-[#D8A23D]' : 'bg-white/[0.06] text-[#8A8378] hover:text-white'}`}>
+                              Kelola
+                            </button>
                           </div>
-                          <button onClick={() => tambahGrupKeTujuan(g)}
-                            className="px-2.5 py-2 rounded bg-[#25D366]/20 text-[#25D366] text-[11px] font-medium hover:bg-[#25D366]/30 transition-colors whitespace-nowrap">
-                            + Tujuan
-                          </button>
+
+                          {sedangKelola && (
+                            <div className="flex flex-col gap-1.5 ml-2 pl-3 border-l-2 border-[#D8A23D]/20">
+                              {/* Anggota grup */}
+                              {anggota.length > 0 && (
+                                <div className="flex flex-col gap-1">
+                                  <p className="text-[10px] font-semibold tracking-[0.1em] text-[#4A453D]">ANGGOTA ({anggota.length})</p>
+                                  {anggota.map(k => (
+                                    <div key={k.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-white/[0.03] border border-white/[0.06]">
+                                      <div className="flex-1 min-w-0">
+                                        <span className="text-[11.5px] text-[#E7E2DC] truncate">{k.nama}</span>
+                                        <span className="text-[10px] text-[#8A8378] ml-1.5 font-mono">·{k.nomor[0]}</span>
+                                      </div>
+                                      <button onClick={() => hapusDariGrupLabel(k.id)}
+                                        className="text-[10px] text-[#8A8378] hover:text-red-400 transition-colors px-1.5 py-0.5 rounded hover:bg-red-500/10">
+                                        Keluarkan
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {/* Kontak belum di grup */}
+                              {bukan.length > 0 && (
+                                <div className="flex flex-col gap-1">
+                                  <p className="text-[10px] font-semibold tracking-[0.1em] text-[#4A453D]">TAMBAH KONTAK</p>
+                                  <div className="max-h-32 overflow-y-auto flex flex-col gap-1">
+                                    {bukan.map(k => (
+                                      <div key={k.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-white/[0.02] border border-white/[0.04]">
+                                        <div className="flex-1 min-w-0">
+                                          <span className="text-[11.5px] text-[#B3ACA1] truncate">{k.nama}</span>
+                                          {k.grup && <span className="text-[9.5px] text-[#4A453D] ml-1.5">({k.grup})</span>}
+                                        </div>
+                                        <button onClick={() => tambahKeGrupLabel(k.id, g)}
+                                          className="text-[10px] text-[#D8A23D] hover:text-[#C89230] transition-colors px-1.5 py-0.5 rounded hover:bg-[#D8A23D]/10">
+                                          + Tambah
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )
                     })}
