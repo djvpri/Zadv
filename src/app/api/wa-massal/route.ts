@@ -17,16 +17,19 @@ export async function POST(req: NextRequest) {
   let reason: string | undefined
 
   try {
-    const payload = new URLSearchParams({ target, message, countryCode: '62' })
+    const form = new FormData()
+    form.append('target', target)
+    form.append('message', message)
+    form.append('countryCode', '62')
     if (mediaUrl) {
-      payload.set('url', mediaUrl)
-      if (filename) payload.set('filename', filename)
+      form.append('url', mediaUrl)
+      if (filename) form.append('filename', filename)
     }
 
     const res = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: { 'Authorization': token },
-      body: payload,
+      body: form,
     })
 
     const data = await res.json()
