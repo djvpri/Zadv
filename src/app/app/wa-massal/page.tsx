@@ -718,19 +718,26 @@ export default function WAMassal() {
             {/* Panel Kontak */}
             {activePanel === 'kontak' && (
               <div className="flex flex-col gap-3">
-                {/* Filter + tambah ke tujuan */}
-                <div className="flex items-center gap-2">
-                  <select value={filterGrup} onChange={e => setFilterGrup(e.target.value)}
-                    className="flex-1 text-[11px] bg-[#161311] border border-white/15 rounded px-2 py-1.5 text-[#B3ACA1] outline-none cursor-pointer hover:border-white/30">
-                    <option value="">Semua grup</option>
-                    {grupLabels.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                  {checked.size > 0 && (
-                    <button onClick={tambahKeTujuan}
-                      className="px-3 py-1.5 rounded bg-[#25D366] text-white text-[11px] font-medium hover:bg-[#20BD5A] transition-colors whitespace-nowrap">
-                      + {checked.size} ke Tujuan
+                {/* Filter grup + tambah ke tujuan */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button onClick={() => setFilterGrup('')}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${!filterGrup ? 'bg-[#D8A23D] text-[#1C1917] border-[#D8A23D] font-medium' : 'border-white/15 text-[#8A8378] hover:text-[#E7E2DC] hover:border-white/30'}`}>
+                      Semua
                     </button>
-                  )}
+                    {grupLabels.map(g => (
+                      <button key={g} onClick={() => setFilterGrup(filterGrup === g ? '' : g)}
+                        className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${filterGrup === g ? 'bg-[#D8A23D] text-[#1C1917] border-[#D8A23D] font-medium' : 'border-white/15 text-[#8A8378] hover:text-[#E7E2DC] hover:border-white/30'}`}>
+                        {g}
+                      </button>
+                    ))}
+                    {checked.size > 0 && (
+                      <button onClick={tambahKeTujuan}
+                        className="ml-auto px-3 py-1 rounded bg-[#25D366] text-white text-[11px] font-medium hover:bg-[#20BD5A] transition-colors whitespace-nowrap">
+                        + {checked.size} ke Tujuan
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* List kontak */}
