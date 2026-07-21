@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import prisma from '@/lib/db'
 
 export async function GET() {
   return NextResponse.json({ hasEnvToken: !!process.env.FONNTE_TOKEN })
@@ -12,6 +13,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'token, target, dan message wajib diisi' }, { status: 400 })
   }
 
+  let ok = false
+  let reason: string | undefined
+
   try {
     const payload: Record<string, string> = { target, message, countryCode: '62' }
     if (mediaUrl) {
@@ -21,21 +25,21 @@ export async function POST(req: NextRequest) {
 
     const res = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
-      headers: {
-        'Authorization': token,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': token, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
 
     const data = await res.json()
-
-    if (!res.ok || data.status === false) {
-      return NextResponse.json({ ok: false, reason: data.reason || data.message || 'Gagal kirim' }, { status: 200 })
-    }
-
-    return NextResponse.json({ ok: true, detail: data })
+    ok = res.ok && data.status !== false
+    reason = ok ? undefined : (data.reason || data.message || 'Gagal kirim')
   } catch {
-    return NextResponse.json({ ok: false, reason: 'Tidak dapat terhubung ke Fonnte' }, { status: 200 })
+    reason = 'Tidak dapat terhubung ke Fonnte'
   }
+
+  // Simpan ke riwayat (fire and forget — jangan block response)
+  prisma.waRiwayat.create({
+    data: { nomor: target, pesan: message, mediaUrl: mediaUrl || null, status: ok ? 'terkirim' : 'gagal', alasan: reason || null },
+  }).catch(() => {})
+
+  return NextResponse.json(ok ? { ok: true } : { ok: false, reason })
 }

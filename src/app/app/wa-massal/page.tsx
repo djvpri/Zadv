@@ -9,6 +9,7 @@ interface LogEntry {
 interface WaGrup { id: number; nama: string; nomor: string[] }
 interface WaTemplate { id: number; judul: string; teks: string }
 interface WaKontak { id: number; nama: string; nomor: string; grup: string | null }
+interface WaRiwayat { id: number; nomor: string; pesan: string; mediaUrl: string | null; status: string; alasan: string | null; sentAt: string }
 
 function normalisiNomor(raw: string): string {
   const n = raw.trim().replace(/\D/g, '')
@@ -19,6 +20,18 @@ function normalisiNomor(raw: string): string {
 
 function parseNomor(teks: string): string[] {
   return teks.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean).map(normalisiNomor).filter(n => n.length >= 10)
+}
+
+function waktuRelatif(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'baru saja'
+  if (m < 60) return `${m} mnt lalu`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h} jam lalu`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `${d} hari lalu`
+  return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
 }
 
 function MediaPreview({ mime, filename, url }: { mime: string; filename: string; url: string }) {
@@ -96,7 +109,9 @@ export default function WAMassal() {
   const [formNomor, setFormNomor] = useState('')
   const [formGrup, setFormGrup] = useState('')
   const [tambahLoading, setTambahLoading] = useState(false)
-  const [activePanel, setActivePanel] = useState<'kontak' | 'grup' | 'template'>('kontak')
+  const [activePanel, setActivePanel] = useState<'kontak' | 'grup' | 'template' | 'riwayat'>('kontak')
+  const [riwayat, setRiwayat] = useState<WaRiwayat[]>([])
+  const [bulanan, setBulanan] = useState(0)
 
   // Lampiran media
   type MediaMode = 'none' | 'upload' | 'url'
@@ -107,6 +122,12 @@ export default function WAMassal() {
   const [mediaUploading, setMediaUploading] = useState(false)
   const [mediaUploadedFile, setMediaUploadedFile] = useState('')  // nama file di server
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const muatRiwayat = useCallback(async () => {
+    const r = await fetch('/api/wa-massal/riwayat').then(x => x.json())
+    setBulanan(r.bulanan ?? 0)
+    setRiwayat(Array.isArray(r.data) ? r.data : [])
+  }, [])
 
   const muatData = useCallback(async () => {
     const [g, t, k] = await Promise.all([
@@ -124,7 +145,8 @@ export default function WAMassal() {
     const saved = localStorage.getItem('zadv_fonnte_token')
     if (saved) { setToken(saved); setTokenSimpan(true) }
     muatData()
-  }, [muatData])
+    muatRiwayat()
+  }, [muatData, muatRiwayat])
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [log])
 
@@ -269,6 +291,7 @@ export default function WAMassal() {
       if (i < daftar.length - 1 && !batalRef.current) await new Promise(r => setTimeout(r, delay * 1000))
     }
     setBerjalan(false); setSelesai(true)
+    muatRiwayat()
   }
 
   function batal() { batalRef.current = true; setBerjalan(false) }
@@ -598,13 +621,29 @@ export default function WAMassal() {
           </div>
         )}
 
-        {/* Panel tabs: Kontak / Grup / Template */}
+        {/* Counter bulanan */}
+        <div className="rounded-lg bg-white/[0.03] border border-white/10 px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-semibold tracking-[0.15em] text-[#8A8378]">TERKIRIM BULAN INI</p>
+            <p className="text-[28px] font-bold text-[#D8A23D] leading-tight mt-0.5">{bulanan.toLocaleString('id-ID')}</p>
+          </div>
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 text-[#D8A23D]/20">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+          </svg>
+        </div>
+
+        {/* Panel tabs: Kontak / Grup / Template / Riwayat */}
         <div className="rounded-lg bg-white/[0.02] border border-white/[0.07] overflow-hidden">
           {/* Tab header */}
           <div className="flex border-b border-white/[0.07]">
-            {([['kontak', `Kontak (${kontaks.length})`], ['grup', `Grup (${grups.length})`], ['template', `Template (${templates.length})`]] as const).map(([key, label]) => (
+            {([
+              ['kontak', `Kontak (${kontaks.length})`],
+              ['grup', `Grup (${grups.length})`],
+              ['template', `Template (${templates.length})`],
+              ['riwayat', 'Riwayat'],
+            ] as const).map(([key, label]) => (
               <button key={key} onClick={() => setActivePanel(key)}
-                className={`flex-1 py-2.5 text-[11px] font-medium transition-colors ${activePanel === key ? 'text-[#D8A23D] bg-white/[0.04] border-b-2 border-[#D8A23D] -mb-px' : 'text-[#8A8378] hover:text-white'}`}>
+                className={`flex-1 py-2.5 text-[10.5px] font-medium transition-colors ${activePanel === key ? 'text-[#D8A23D] bg-white/[0.04] border-b-2 border-[#D8A23D] -mb-px' : 'text-[#8A8378] hover:text-white'}`}>
                 {label}
               </button>
             ))}
@@ -724,6 +763,39 @@ export default function WAMassal() {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Panel Riwayat */}
+            {activePanel === 'riwayat' && (
+              <div className="flex flex-col gap-1">
+                {riwayat.length === 0 && <p className="text-[11.5px] text-[#4A453D] text-center py-6">Belum ada riwayat pengiriman</p>}
+                <div className="flex flex-col max-h-80 overflow-y-auto">
+                  {riwayat.map(r => (
+                    <div key={r.id} className="flex items-start gap-2.5 py-2.5 border-b border-white/[0.05] last:border-0">
+                      <div className="shrink-0 mt-0.5">
+                        {r.status === 'terkirim'
+                          ? <IconCheck />
+                          : <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-red-400"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11.5px] font-mono text-[#B3ACA1] truncate">+{r.nomor}</span>
+                          <span className="text-[10px] text-[#4A453D] shrink-0">{waktuRelatif(r.sentAt)}</span>
+                        </div>
+                        <div className="text-[10.5px] text-[#8A8378] truncate mt-0.5">
+                          {r.mediaUrl && <span className="text-[#D8A23D] mr-1">📎</span>}
+                          {r.pesan.slice(0, 60)}{r.pesan.length > 60 ? '...' : ''}
+                        </div>
+                        {r.alasan && <div className="text-[10px] text-red-400 truncate mt-0.5">{r.alasan}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {riwayat.length === 100 && (
+                  <p className="text-[10px] text-[#4A453D] text-center pt-2">Menampilkan 100 riwayat terbaru</p>
+                )}
               </div>
             )}
           </div>

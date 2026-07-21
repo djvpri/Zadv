@@ -83,6 +83,19 @@ model WaKontak {
   @@index([grup])
 }
 
+model WaRiwayat {
+  id       Int      @id @default(autoincrement())
+  nomor    String
+  pesan    String   @db.Text
+  mediaUrl String?
+  status   String   // 'terkirim' | 'gagal'
+  alasan   String?
+  sentAt   DateTime @default(now())
+
+  @@index([sentAt])
+  @@index([status])
+}
+
 model MusicTrack {
   id        Int      @id @default(autoincrement())
   nama      String
