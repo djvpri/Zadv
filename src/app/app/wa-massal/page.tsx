@@ -136,6 +136,13 @@ export default function WAMassal() {
   const [editGrup, setEditGrup] = useState('')
   const [editLoading, setEditLoading] = useState(false)
   const [activePanel, setActivePanel] = useState<'kontak' | 'grup' | 'template' | 'riwayat'>('kontak')
+  // GMaps import
+  const [showGmaps, setShowGmaps] = useState(false)
+  const [gmapsQ, setGmapsQ] = useState('')
+  const [gmapsLoading, setGmapsLoading] = useState(false)
+  const [gmapsHasil, setGmapsHasil] = useState<{ id: string; nama: string; nomor: string; nomorRaw: string; alamat: string }[]>([])
+  const [gmapsPilih, setGmapsPilih] = useState<Set<string>>(new Set())
+  const [gmapsImporting, setGmapsImporting] = useState(false)
   const [riwayat, setRiwayat] = useState<WaRiwayat[]>([])
   const [bulanan, setBulanan] = useState(0)
 
@@ -266,6 +273,41 @@ export default function WAMassal() {
   async function hapusKontak(id: number) {
     await fetch(`/api/wa-massal/kontak/${id}`, { method: 'DELETE' }); muatData()
     setChecked(prev => { const s = new Set(prev); s.delete(id); return s })
+  }
+
+  async function cariGmaps() {
+    if (!gmapsQ.trim()) return
+    setGmapsLoading(true)
+    setGmapsHasil([])
+    setGmapsPilih(new Set())
+    try {
+      const res = await fetch(`/api/wa-massal/gmaps?q=${encodeURIComponent(gmapsQ)}`)
+      const data = await res.json()
+      if (!res.ok) { alert(data.error || 'Gagal mencari'); return }
+      setGmapsHasil(data.places || [])
+    } catch { alert('Koneksi error') }
+    setGmapsLoading(false)
+  }
+
+  async function importGmaps() {
+    const dipilih = gmapsHasil.filter(p => gmapsPilih.has(p.id) && p.nomor)
+    if (dipilih.length === 0) { alert('Pilih kontak yang memiliki nomor HP terlebih dahulu'); return }
+    setGmapsImporting(true)
+    let berhasil = 0
+    for (const p of dipilih) {
+      try {
+        const res = await fetch('/api/wa-massal/kontak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nama: p.nama, nomor: [p.nomor], grup: '' }),
+        })
+        if (res.ok) berhasil++
+      } catch { /* skip */ }
+    }
+    await muatData()
+    setGmapsImporting(false)
+    setGmapsPilih(new Set())
+    alert(`${berhasil} kontak berhasil diimport`)
   }
 
   function mulaiEdit(k: WaKontak) {
@@ -942,9 +984,18 @@ export default function WAMassal() {
 
                 {/* Form tambah kontak */}
                 {!showTambahKontak ? (
-                  <button onClick={() => setShowTambahKontak(true)} className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors mt-1">
-                    + Tambah kontak baru
-                  </button>
+                  <div className="flex gap-3 mt-1">
+                    <button onClick={() => { setShowTambahKontak(true); setShowGmaps(false) }}
+                      className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors">
+                      + Tambah kontak baru
+                    </button>
+                    <span className="text-[#4A453D]">·</span>
+                    <button onClick={() => { setShowGmaps(v => !v); setShowTambahKontak(false) }}
+                      className="text-[11.5px] text-[#8A8378] hover:text-[#D8A23D] transition-colors flex items-center gap-1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                      Import GMaps
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex flex-col gap-2 pt-2 border-t border-white/[0.06]">
                     <input autoFocus type="text" value={formNama} onChange={e => setFormNama(e.target.value)}
@@ -998,6 +1049,71 @@ export default function WAMassal() {
                         Batal
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* Panel Import GMaps */}
+                {showGmaps && (
+                  <div className="flex flex-col gap-2 pt-2 border-t border-white/[0.06]">
+                    <p className="text-[10px] font-semibold tracking-[0.12em] text-[#4A453D]">IMPORT DARI GOOGLE MAPS</p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text" value={gmapsQ} onChange={e => setGmapsQ(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && cariGmaps()}
+                        placeholder="Cth: restoran padang jakarta, dokter gigi bandung..."
+                        className="flex-1 bg-[#161311] border border-white/15 rounded px-3 py-1.5 text-[12px] text-[#E7E2DC] placeholder-[#4A453D] outline-none focus:border-[#D8A23D]/50" />
+                      <button onClick={cariGmaps} disabled={gmapsLoading || !gmapsQ.trim()}
+                        className="px-3 py-1.5 rounded bg-[#D8A23D] text-[#1C1917] text-[12px] font-medium hover:bg-[#C89230] disabled:opacity-50 transition-colors whitespace-nowrap">
+                        {gmapsLoading ? '...' : 'Cari'}
+                      </button>
+                    </div>
+
+                    {gmapsHasil.length > 0 && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-[#8A8378]">{gmapsHasil.length} hasil ditemukan</span>
+                          <button onClick={() => setGmapsPilih(
+                            gmapsPilih.size === gmapsHasil.filter(p => p.nomor).length
+                              ? new Set()
+                              : new Set(gmapsHasil.filter(p => p.nomor).map(p => p.id))
+                          )} className="text-[11px] text-[#D8A23D] hover:text-[#C89230] transition-colors">
+                            {gmapsPilih.size === gmapsHasil.filter(p => p.nomor).length ? 'Hapus semua' : 'Pilih semua'}
+                          </button>
+                        </div>
+                        <div className="flex flex-col gap-1 max-h-52 overflow-y-auto">
+                          {gmapsHasil.map(p => (
+                            <div key={p.id} onClick={() => p.nomor && setGmapsPilih(prev => {
+                              const s = new Set(prev)
+                              s.has(p.id) ? s.delete(p.id) : s.add(p.id)
+                              return s
+                            })} className={`flex items-start gap-2 px-2.5 py-2 rounded border transition-colors ${
+                              p.nomor ? 'cursor-pointer hover:border-[#D8A23D]/30' : 'opacity-40 cursor-not-allowed'
+                            } ${gmapsPilih.has(p.id) ? 'border-[#D8A23D]/40 bg-[#D8A23D]/5' : 'border-white/[0.06] bg-white/[0.02]'}`}>
+                              <input type="checkbox" readOnly checked={gmapsPilih.has(p.id)}
+                                disabled={!p.nomor} className="accent-[#D8A23D] shrink-0 mt-0.5 cursor-pointer" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[12px] text-[#E7E2DC] truncate">{p.nama}</p>
+                                {p.nomor
+                                  ? <p className="text-[11px] font-mono text-[#25D366]">{p.nomorRaw}</p>
+                                  : <p className="text-[10.5px] text-[#4A453D] italic">Tidak ada nomor HP</p>
+                                }
+                                <p className="text-[10px] text-[#4A453D] truncate mt-0.5">{p.alamat}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {gmapsPilih.size > 0 && (
+                          <button onClick={importGmaps} disabled={gmapsImporting}
+                            className="w-full py-1.5 rounded bg-[#25D366] text-white text-[12px] font-medium hover:bg-[#20BD5A] disabled:opacity-50 transition-colors">
+                            {gmapsImporting ? 'Mengimport...' : `Import ${gmapsPilih.size} kontak`}
+                          </button>
+                        )}
+                      </>
+                    )}
+
+                    {!gmapsLoading && gmapsHasil.length === 0 && gmapsQ && (
+                      <p className="text-[11px] text-[#4A453D] text-center py-2">Belum ada hasil — coba kata kunci lain</p>
+                    )}
                   </div>
                 )}
               </div>
