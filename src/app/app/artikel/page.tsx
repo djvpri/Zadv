@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { Stars, Image, ArrowRepeat, Upload, CheckCircleFill, PencilSquare } from 'react-bootstrap-icons'
 
 interface PromoApp { id: number; nama: string; emoji: string; tagline: string }
 
@@ -175,7 +176,7 @@ export default function ArtikelPage() {
                 <span className="h-3.5 w-3.5 rounded-full border-2 border-[#1C1917] border-t-transparent animate-spin" />
                 Generating...
               </>
-            ) : '✦ Generate Artikel'}
+            ) : <span className="flex items-center gap-2"><Stars size={16} /> Generate Artikel</span>}
           </button>
         </div>
 
@@ -273,7 +274,7 @@ export default function ArtikelPage() {
                       onClick={() => fileInputRef.current?.click()}
                       className="flex items-center gap-1.5 rounded border border-white/15 hover:border-[#D8A23D]/40 bg-white/5 hover:bg-[#D8A23D]/5 px-3 py-1.5 text-[12px] text-[#B8B3AC] hover:text-[#D8A23D] transition-colors"
                     >
-                      <span>🖼</span> Upload Gambar
+                      <span className="flex items-center gap-1.5"><Image size={15} /> Upload Gambar</span>
                     </button>
                   )}
                   <span className="text-[10px] text-[#6B6560]">JPG/PNG/WebP — akan dipublish ke zomet-main</span>
@@ -311,7 +312,7 @@ export default function ArtikelPage() {
                   disabled={loading}
                   className="text-[12px] text-[#8A8378] hover:text-white px-2 py-1 rounded hover:bg-white/5 transition-colors"
                 >
-                  ↺ Generate Ulang
+                  <span className="flex items-center gap-1.5"><ArrowRepeat size={14} /> Generate Ulang</span>
                 </button>
                 <button
                   onClick={publish}
@@ -323,7 +324,7 @@ export default function ArtikelPage() {
                       <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
                       Publishing...
                     </>
-                  ) : '↑ Publish ke Zomet'}
+                  ) : <span className="flex items-center gap-1.5"><Upload size={15} /> Publish ke Zomet</span>}
                 </button>
               </div>
             </div>
@@ -372,7 +373,7 @@ export default function ArtikelPage() {
         {/* Success */}
         {result && (
           <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center">
-            <div className="w-16 h-16 rounded-full bg-green-500/15 flex items-center justify-center text-3xl">✓</div>
+            <div className="w-16 h-16 rounded-full bg-green-500/15 flex items-center justify-center text-green-400"><CheckCircleFill size={34} /></div>
             <div>
               <p className="text-[15px] font-semibold text-white mb-1">Artikel berhasil dipublish!</p>
               <p className="text-[13px] text-[#8A8378]">Railway sedang deploy... artikel aktif dalam ~2 menit.</p>
@@ -405,7 +406,7 @@ export default function ArtikelPage() {
         {/* Empty state */}
         {!loading && !draft && !result && (
           <div className="flex-1 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-3 text-[#6B6560]">
-            <span className="text-4xl">📝</span>
+            <PencilSquare size={34} className="text-[#8A8378]" />
             <p className="text-[13px]">
               {selectedApp ? `Klik "Generate Artikel" untuk membuat artikel tentang ${selectedApp.nama}` : 'Pilih aplikasi dari sidebar'}
             </p>
