@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { getGithubToken } from '@/lib/secrets'
 
-const OWNER = 'djvpri'
-const REPO = 'zomet-main'
-const BRANCH = 'main'
+export const OWNER = 'djvpri'
+export const REPO = 'zomet-main'
+export const BRANCH = 'main'
 const BASE_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents`
 
 function youtubeEmbedId(url: string): string | null {
@@ -20,7 +20,7 @@ function youtubeEmbedId(url: string): string | null {
   return null
 }
 
-function buildFileContent(
+export function buildFileContent(
   judul: string,
   deskripsi: string,
   tags: string[],
@@ -55,7 +55,7 @@ ${tagYaml}
 ${body}`
 }
 
-async function pushToGitHub(
+export async function pushToGitHub(
   token: string,
   filePath: string,
   contentBase64: string,

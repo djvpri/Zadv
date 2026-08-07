@@ -4,7 +4,7 @@ import { getGeminiKey } from '@/lib/secrets'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
-const ANGLES = [
+export const ANGLES = [
   'masalah nyata yang dialami UMKM dan bagaimana {nama} menyelesaikannya',
   'panduan lengkap memulai bisnis digital dengan bantuan {nama}',
   'mengapa bisnis yang belum pakai {nama} sedang tertinggal dari kompetitor',
@@ -15,7 +15,38 @@ const ANGLES = [
   'revolusi digitalisasi bisnis: peran {nama} untuk UMKM Indonesia',
 ]
 
-async function callGemini(prompt: string): Promise<string> {
+export function buatPromptArtikel(app: { nama: string; tagline: string; fitur: string[]; url?: string | null }, angle: string): string {
+  const appUrl = app.url || 'https://zomet.my.id'
+  return `Kamu adalah content writer SEO profesional untuk blog teknologi bisnis Indonesia.
+
+Buatkan artikel blog lengkap tentang aplikasi SaaS berikut dengan sudut pandang: "${angle}"
+
+Data Aplikasi:
+- Nama: ${app.nama}
+- Tagline: ${app.tagline}
+- Fitur utama: ${app.fitur.join(', ')}
+- URL: ${appUrl}
+
+Ketentuan artikel:
+- Bahasa Indonesia yang natural, informatif, dan mudah dipahami pemilik UMKM
+- Panjang konten minimal 600 kata, maksimal 900 kata
+- Gunakan heading ## untuk sub-judul utama, ### untuk sub-heading
+- Sertakan bullet points untuk fitur/manfaat
+- Akhiri dengan paragraf CTA yang mengarahkan ke ${appUrl}
+- Jangan sebut harga spesifik
+- JANGAN sertakan image atau gambar apapun
+
+Kembalikan HANYA JSON tanpa markdown code block, dengan format:
+{
+  "judul": "judul artikel menarik dan SEO-friendly, maksimal 70 karakter",
+  "slug": "slug-url-dari-judul-tanpa-karakter-spesial",
+  "deskripsi": "meta deskripsi 150-160 karakter yang menarik untuk SEO",
+  "tags": ["tag1", "tag2", "tag3", "tag4"],
+  "konten": "isi artikel lengkap dalam format markdown"
+}`
+}
+
+export async function callGemini(prompt: string): Promise<string> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${getGeminiKey()}`,
     {
@@ -44,33 +75,7 @@ export async function POST(req: Request) {
   const angle = ANGLES[Math.floor(Math.random() * ANGLES.length)].replace('{nama}', app.nama)
   const today = new Date().toISOString().slice(0, 10)
 
-  const prompt = `Kamu adalah content writer SEO profesional untuk blog teknologi bisnis Indonesia.
-
-Buatkan artikel blog lengkap tentang aplikasi SaaS berikut dengan sudut pandang: "${angle}"
-
-Data Aplikasi:
-- Nama: ${app.nama}
-- Tagline: ${app.tagline}
-- Fitur utama: ${app.fitur.join(', ')}
-- URL: ${app.url || 'https://zomet.my.id'}
-
-Ketentuan artikel:
-- Bahasa Indonesia yang natural, informatif, dan mudah dipahami pemilik UMKM
-- Panjang konten minimal 600 kata, maksimal 900 kata
-- Gunakan heading ## untuk sub-judul utama, ### untuk sub-heading
-- Sertakan bullet points untuk fitur/manfaat
-- Akhiri dengan paragraf CTA yang mengarahkan ke ${app.url || 'https://zomet.my.id'}
-- Jangan sebut harga spesifik
-- JANGAN sertakan image atau gambar apapun
-
-Kembalikan HANYA JSON tanpa markdown code block, dengan format:
-{
-  "judul": "judul artikel menarik dan SEO-friendly, maksimal 70 karakter",
-  "slug": "slug-url-dari-judul-tanpa-karakter-spesial",
-  "deskripsi": "meta deskripsi 150-160 karakter yang menarik untuk SEO",
-  "tags": ["tag1", "tag2", "tag3", "tag4"],
-  "konten": "isi artikel lengkap dalam format markdown"
-}`
+  const prompt = buatPromptArtikel(app, angle)
 
   try {
     const raw = await callGemini(prompt)

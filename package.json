@@ -9,6 +9,8 @@
     "start": "node scripts/migrate.js && next start",
     "lint": "next lint",
     "seed": "node scripts/seed-apps.js",
+    "artikel:harian": "tsx scripts/artikel-harian.ts",
+    "artikel:harian:test": "tsx scripts/artikel-harian.test.ts",
     "update:zone": "node scripts/update-zone.js",
     "electron:dev": "electron .",
     "electron:build": "node scripts/build-electron.js",

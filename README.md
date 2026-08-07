@@ -49,3 +49,20 @@ Video besar/panjang butuh waktu proses (bisa puluhan detik sampai beberapa menit
 
 ## Tidak terhubung ke Z One
 App ini **berdiri sendiri** — tidak pakai SSO, tidak baca database Z One. Daftar app yang mau dipromosikan dikelola manual lewat halaman "Kelola App", bukan otomatis sinkron dari ekosistem.
+
+## Artikel otomatis harian (cron)
+Script `scripts/artikel-harian.ts` generate 1 artikel per hari untuk app berikutnya (rotasi adil: app setelah yang terakhir di-publish, wraparound ke awal), lalu **langsung publish** ke repo `djvpri/zomet-main` (`content/artikel/<slug>-<YYYYMMDD>.md`). App baru di "Kelola App" langsung mendapat giliran berdasarkan urutan id — tanpa ubah kode. Jika hari itu sudah ada artikel published (draft di-tandai `published`), script melompat (idempotent), aman dari overlap cron.
+
+Jalankan manual / test:
+```bash
+npm run artikel:harian:test   # self-check logika rotasi (tanpa DB, tanpa Gemini)
+DRY_RUN=1 npm run artikel:harian   # generate + simpan draft, TANPA push ke GitHub
+npm run artikel:harian             # generate + publish penuh
+```
+Butuh env: `DATABASE_URL`, `GEMINI_API_KEY`, `GITHUB_TOKEN`.
+
+**Setup di Railway (sekali):**
+1. Buat **service/paas cron** terpisah (mis. `zadv-cron`) memakai image hasil build yang sama.
+2. Atur **command** service tsb: `npm run artikel:harian`.
+3. Set **schedule** ke `0 0 * * *` (00:00 UTC = 07:00 WIB).
+4. Pastikan semua env (`DATABASE_URL`, `GEMINI_API_KEY`, `GITHUB_TOKEN`) ikut di-set di service cron.
