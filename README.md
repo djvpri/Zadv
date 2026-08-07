@@ -66,3 +66,12 @@ Butuh env: `DATABASE_URL`, `GEMINI_API_KEY`, `GITHUB_TOKEN`.
 2. Atur **command** service tsb: `npm run artikel:harian`.
 3. Set **schedule** ke `0 0 * * *` (00:00 UTC = 07:00 WIB).
 4. Pastikan semua env (`DATABASE_URL`, `GEMINI_API_KEY`, `GITHUB_TOKEN`) ikut di-set di service cron.
+
+### Alternatif: GitHub Actions (tanpa perlu Railway cron)
+Repo sudah ada workflow `.github/workflows/artikel-harian.yml` — jalan tiap hari 07:00 WIB via GitHub Actions (tidak perlu dashboard Railway). Yang perlu di-set **satu kali** di GitHub:
+1. Buka repo `Zadv` → **Settings → Secrets and variables → Actions**.
+2. Tambah repo secrets:
+   - `DATABASE_URL` (Postgres Railway Zadv)
+   - `GEMINI_API_KEY` (AI Studio)
+   - `ZOMET_PUSH_TOKEN` — **PAT** (Personal Access Token, scope `repo`, milik akun yang punya akses push ke `djvpri/zomet-main`)
+3. Workflow langsung dijadwalkan (cron `0 0 * * *` UTC). Jalankan manual kapan pun lewat tab **Actions → artikel-harian → Run workflow**.

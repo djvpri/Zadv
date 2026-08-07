@@ -1,0 +1,28 @@
+name: artikel-harian
+
+# Publish 1 artikel otomatis per hari (07:00 WIB = 00:00 UTC).
+# Jalan di GitHub Actions (bukan Railway cron) karena tidak perlu dashboard
+# Railway & imbang dengan RAM WSL build.
+
+on:
+  schedule:
+    - cron: '0 0 * * *'   # 00:00 UTC = 07:00 WIB
+  workflow_dispatch: {}   # izinkan jalankan manual dari tab Actions
+
+jobs:
+  buat-artikel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Generate & publish artikel harian
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.ZOMET_PUSH_TOKEN }}
+        run: npm run artikel:harian
