@@ -6,8 +6,8 @@
 
 import prisma from '@/lib/db'
 import { getGeminiKey, getGithubToken } from '@/lib/secrets'
-import { ANGLES, buatPromptArtikel, callGemini } from '@/app/api/generate/artikel/route'
-import { buildFileContent, pushToGitHub } from '@/app/api/artikel/publish/route'
+import { ANGLES, buatPromptArtikel, callGemini } from '@/lib/artikel'
+import { buildFileContent, pushToGitHub } from '@/lib/artikel'
 
 // Tanggal "hari ini" dalam WIB (UTC+7). Mulai hari = pergeseran UTC agar rentang
 // idempotent dipakai konsisten antara jam publish (07:00 WIB = 00:00 UTC).
