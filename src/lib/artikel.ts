@@ -94,6 +94,11 @@ export function buildFileContent(
   gambarPath?: string,
   youtubeUrl?: string,
 ): string {
+  // Normalisasi tanggal: terima '20260812' (cron) atau '2026-08-12' (manual),
+  // keluarkan ISO YYYY-MM-DD agar halaman list zomet-main bisa parse (new Date) & sort.
+  if (/^\d{8}$/.test(date)) {
+    date = date.slice(0, 4) + '-' + date.slice(4, 6) + '-' + date.slice(6, 8)
+  }
   const tagYaml = tags.map(t => `  - "${t}"`).join('\n')
   const imageLine = gambarPath ? `\nimage: "${gambarPath}"` : ''
   const youtubeLine = youtubeUrl ? `\nyoutube: "${youtubeUrl}"` : ''
