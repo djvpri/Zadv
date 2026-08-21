@@ -30,8 +30,13 @@ export async function middleware(req: NextRequest) {
   const isApiAuth = pathname.startsWith('/api/auth/')
   const isHealth = pathname === '/api/health'
   const isLoginPage = pathname === '/login'
+  // Cross-app: GET /api/apps boleh diakses Z lain (cron artikel ZPos) kalau
+  // header X-Cross-App-Secret cocok. Akses lintas-app dibatasi pemegang secret.
+  const isCrossApps = pathname === '/api/apps' && req.method === 'GET'
+    && !!process.env.CROSS_APP_SECRET
+    && req.headers.get('x-cross-app-secret') === process.env.CROSS_APP_SECRET
 
-  if (isApiAuth || isHealth || isLoginPage) return NextResponse.next()
+  if (isApiAuth || isHealth || isLoginPage || isCrossApps) return NextResponse.next()
 
   if (pathname.startsWith('/api/')) {
     if (!valid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
