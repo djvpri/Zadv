@@ -1,8 +1,8 @@
 name: artikel-harian
 
-# Publish 1 artikel otomatis per hari (07:00 WIB = 00:00 UTC).
-# Jalan di GitHub Actions (bukan Railway cron) karena tidak perlu dashboard
-# Railway & imbang dengan RAM WSL build.
+# Publish artikel otomatis per hari (07:00 WIB = 00:00 UTC).
+# Trigger endpoint Zadv VPS — VPS yang koneksi DB + Gemini, bukan GH Actions.
+# GH Actions cuma kirim HTTP POST, tidak butuh DATABASE_URL/GEMINI_KEY.
 
 on:
   schedule:
@@ -10,19 +10,18 @@ on:
   workflow_dispatch: {}   # izinkan jalankan manual dari tab Actions
 
 jobs:
-  buat-artikel:
+  trigger:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npx prisma generate
-      - name: Generate & publish artikel harian
+      - name: Trigger artikel generate di VPS
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.ZOMET_PUSH_TOKEN }}
-        run: npm run artikel:harian
+          ZADV_URL: ${{ secrets.ZADV_URL }}
+          CROSS_APP_SECRET: ${{ secrets.CROSS_APP_SECRET }}
+        run: |
+          STATUS=$(curl -s -o /tmp/resp.json -w "%{http_code}"             -X POST "${ZADV_URL}/api/artikel/trigger"             -H "X-Cross-App-Secret: ${CROSS_APP_SECRET}")
+          echo "HTTP $STATUS"
+          cat /tmp/resp.json
+          if [ "$STATUS" != "200" ]; then
+            echo "Trigger gagal (HTTP $STATUS)"
+            exit 1
+          fi

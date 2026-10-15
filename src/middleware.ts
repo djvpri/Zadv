@@ -30,15 +30,16 @@ export async function middleware(req: NextRequest) {
   const isApiAuth = pathname.startsWith('/api/auth/')
   const isHealth = pathname === '/api/health'
   const isLoginPage = pathname === '/login'
-  // Cross-app: GET /api/apps boleh diakses Z lain (cron artikel ZPos) kalau
-  // header X-Cross-App-Secret cocok. Akses lintas-app dibatasi pemegang secret.
-  const isCrossApps = pathname === '/api/apps' && req.method === 'GET'
-    && !!process.env.CROSS_APP_SECRET
+  // Cross-app: GET /api/apps + POST /api/artikel/trigger boleh diakses
+  // GH Actions cron / Z lain kalau header X-Cross-App-Secret cocok.
+  const crossSecretOk = !!process.env.CROSS_APP_SECRET
     && req.headers.get('x-cross-app-secret') === process.env.CROSS_APP_SECRET
+  const isCrossApps = pathname === '/api/apps' && req.method === 'GET' && crossSecretOk
+  const isCrossTrigger = pathname === '/api/artikel/trigger' && req.method === 'POST' && crossSecretOk
   // Public artikel API: landing page app fetch /api/artikel/publik tanpa auth.
   const isPublicArtikel = pathname.startsWith('/api/artikel/publik') && req.method === 'GET'
 
-  if (isApiAuth || isHealth || isLoginPage || isCrossApps || isPublicArtikel) {
+  if (isApiAuth || isHealth || isLoginPage || isCrossApps || isCrossTrigger || isPublicArtikel) {
     // CORS untuk public artikel API — allow *.zomet.my.id
     if (isPublicArtikel) {
       const origin = req.headers.get('origin') || ''
