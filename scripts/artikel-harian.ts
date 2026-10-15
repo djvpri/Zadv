@@ -24,7 +24,14 @@ export function todayWib(): { startMs: number; yyyymmdd: string } {
 
 function parseGeminiJson(raw: string) {
   const cleaned = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
-  const parsed = JSON.parse(cleaned)
+  // Gemini kadang sisipkan control char (newline/tab mentah) di dalam string literal JSON
+  const sanitized = cleaned.replace(/[\x00-\x1f]/g, (ch) => {
+    if (ch === '\n') return '\\n'
+    if (ch === '\r') return '\\r'
+    if (ch === '\t') return '\\t'
+    return ''
+  })
+  const parsed = JSON.parse(sanitized)
   const { judul, slug, deskripsi, tags, konten } = parsed
   if (!judul || !slug || !deskripsi || !konten) throw new Error('Format JSON dari Gemini tidak lengkap')
   return { judul, slug, deskripsi, tags: Array.isArray(tags) ? tags : [], konten }
