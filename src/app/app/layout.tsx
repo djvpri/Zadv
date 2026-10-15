@@ -6,6 +6,7 @@ const NAV = [
   { href: '/app', label: 'Z Adv' },
   { href: '/app/video', label: 'Video' },
   { href: '/app/artikel', label: 'Artikel' },
+  { href: '/app/artikel-otomatis', label: 'Auto Artikel' },
   { href: '/app/musik', label: '🎵 Musik' },
   { href: '/app/wa-massal', label: 'WA Massal' },
   { href: '/app/riwayat', label: 'Riwayat' },
