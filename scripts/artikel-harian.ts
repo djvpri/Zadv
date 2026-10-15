@@ -24,13 +24,15 @@ export function todayWib(): { startMs: number; yyyymmdd: string } {
 
 function parseGeminiJson(raw: string) {
   const cleaned = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
-  // Gemini kadang sisipkan control char (newline/tab mentah) di dalam string literal JSON
+  // Gemini kadang sisipkan control char (newline/tab mentah) di dalam string literal JSON.
+  // Tapi newline/tab antar key-value adalah whitespace valid di JSON — JANGAN di-escape.
+  // Hanya escape control char yang berada DI DALAM string literal (antara tanda kutip).
   const sanitized = cleaned.replace(/[\x00-\x1f]/g, (ch) => {
-    if (ch === '\n') return '\\n'
-    if (ch === '\r') return '\\r'
-    if (ch === '\t') return '\\t'
     return ''
   })
+  if (sanitized.length < 2) {
+    throw new Error(`Respons Gemini kosong/singkat: len=${raw.length}, first=${JSON.stringify(raw.slice(0,50))}`)
+  }
   const parsed = JSON.parse(sanitized)
   const { judul, slug, deskripsi, tags, konten } = parsed
   if (!judul || !slug || !deskripsi || !konten) throw new Error('Format JSON dari Gemini tidak lengkap')
