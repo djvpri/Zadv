@@ -1,77 +1,129 @@
-# Meja Promosi (ZPromo)
+# Meja Promosi (Zadv)
 
-Internal tool untuk generate caption & poster promosi tiap app di ekosistem Zomet. Cuma untuk Andi sendiri — login pakai password tunggal, bukan SSO Z One.
+Internal tool untuk generate caption, poster, video, artikel SEO, dan kirim WA massal
+untuk ekosistem Zomet. Login pakai password tunggal — bukan SSO Z One.
 
 ## Fitur
-- **Meja Cetak** — pilih app, atur platform & nada bicara, generate caption via Gemini API. Poster bisa diunduh sebagai PNG.
-- **Video** — upload video durasi berapa pun, otomatis dipotong jadi ~60 detik (sampel dari depan/tengah/belakang, disambung — bukan cuma 1 menit pertama), ditambah caption di atasnya. Lihat "Cara kerja fitur Video" di bawah.
-- **Riwayat** — semua caption yang pernah dibuat tersimpan, bisa disalin ulang.
-- **Kelola App** — tambah/edit/hapus app yang mau dipromosikan (nama, tagline, fitur, warna).
 
-## Setup lokal
+- **Meja Cetak** — pilih app, atur platform & tone, generate caption via Gemini. Poster unduh PNG.
+- **Video** — upload video, otomatis dipotong ~60 detik (sampel 3 zona: depan/tengah/belakang), caption dibakar sebagai subtitle atau teks statis. Backsound musik opsional.
+- **Artikel** — generate draft artikel SEO via Gemini, publish langsung ke repo `djvpri/zomet-main`.
+- **Musik** — upload musik untuk backsound video (ekstrak audio dari video juga didukung).
+- **WA Massal** — kirim WA ke kontak/grup via Fonnte. Fitur: kontak CRUD, template, blacklist, cooldown, media upload, scrape nomor dari Google Maps & TikTok.
+- **Riwayat** — semua caption/poster yang pernah dibuat.
+- **Kelola App** — tambah/edit/hapus app yang dipromosikan (soft delete).
+
+## Setup Lokal
+
 ```bash
 npm install
-cp .env.example .env   # isi DATABASE_URL, JWT_SECRET, ADMIN_PASSWORD, GEMINI_API_KEY
-npx prisma db push
-npm run seed            # isi 8 app awal (ZGold, ZBengkel, dst)
-npm run dev
+cp .env.example .env          # isi semua env var (lihat tabel di bawah)
+npx prisma db push             # sync schema ke DB
+npm run seed                   # isi 8 app awal (idempotent)
+npm run dev                    # dev server di localhost:3000
 ```
-Fitur Video butuh `ffmpeg` & `ffprobe` terpasang di sistem (sudah otomatis lewat Dockerfile di Railway; untuk dev lokal, pasang manual: `apt install ffmpeg` / `brew install ffmpeg`).
 
-## Env yang wajib diisi di Railway
-| Variabel | Keterangan |
-|---|---|
-| `DATABASE_URL` | PostgreSQL Railway |
-| `JWT_SECRET` | random panjang, buat sendiri (`openssl rand -hex 32`) |
-| `ADMIN_PASSWORD` | password login kamu sendiri |
-| `GEMINI_API_KEY` | API key dari aistudio.google.com |
-| `VIDEO_STORAGE_DIR` | path Railway Volume, mis. `/data/videos` — **wajib** kalau mau pakai fitur Video |
+Fitur Video butuh `ffmpeg` & `ffprobe`:
+- Linux: `apt install ffmpeg`
+- macOS: `brew install ffmpeg`
+- Windows: download dari ffmpeg.org, tambahkan ke PATH
+- Docker: sudah otomatis terinstall di Dockerfile
 
-### Railway Volume untuk fitur Video (penting)
-Video (asli & hasil olahan) disimpan sebagai file di disk, BUKAN di database — Postgres tidak cocok untuk simpan file besar. Ini butuh **Railway Volume** terpasang ke service zpromo:
-1. Di service zpromo → tab **Settings** → **Volumes** → Add Volume
-2. Mount path: `/data/videos` (atau path lain, samakan dengan `VIDEO_STORAGE_DIR`)
-3. Tanpa Volume ini, fitur Video tetap jalan tapi file akan hilang setiap kali service di-restart/redeploy (karena filesystem container bersifat sementara)
+## Environment Variables
 
-## Setelah deploy pertama kali
-Jalankan sekali di Railway shell:
+| Var | Wajib | Keterangan |
+|-----|-------|------------|
+| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `JWT_SECRET` | ✅ | Random string panjang (`openssl rand -hex 32`) |
+| `ADMIN_PASSWORD` | ✅ | Password login |
+| `GEMINI_API_KEY` | ✅ | API key dari aistudio.google.com |
+| `CROSS_APP_SECRET` | ✅ | Secret untuk akses lintas-app (GET /api/apps) |
+| `FONNTE_TOKEN` | WA Massal | Token API Fonnte |
+| `VIDEO_STORAGE_DIR` | Video | Path volume storage video (default: `.tmp-videos`) |
+| `ELECTRON_APP` | HTTP deploy | Set `true` untuk deploy HTTP (cookie fix, lihat bawah) |
+| `GITHUB_TOKEN` | Cron artikel | PAT scope `repo` untuk push ke `djvpri/zomet-main` |
+| `GOOGLE_PLACES_API_KEY` | Opsional | Scrape nomor dari Google Maps |
+| `WA_MEDIA_DIR` | Opsional | Path storage media WA (default: `/data/wa-media`) |
+
+### ⚠️ ELECTRON_APP=true untuk HTTP deploy
+
+Jika deploy via HTTP (bukan HTTPS, mis. Coolify tanpa SSL), **wajib** set `ELECTRON_APP=true`.
+Tanpa ini, cookie `Secure` flag aktif → browser menolak cookie → login gagal (API return `{"ok":true}` tapi halaman redirect balik ke `/login`).
+
+## Deploy (Coolify VPS)
+
+App dideploy di Coolify VPS `103.93.129.94`.
+
+1. **Dockerfile** di root repo — `node:20-slim` + ffmpeg. Build pack: `dockerfile`.
+2. **Postgres** — gunakan Coolify managed Postgres (container internal), **bukan** Railway proxy. Prisma engine TLS handshake gagal via Railway TCP proxy.
+   - Connection: `postgresql://postgres:<pass>@<container-id>:5432/postgres`
+3. **Env vars** — 8 vars di-set via Coolify UI atau DB (lihat `AGENTS.md` untuk detail troubleshooting).
+4. **Start command** — `npm start` (menjalankan `scripts/migrate.js` → `next start`). Migrate auto-sync schema tiap deploy.
+5. **Seed** — jalankan sekali setelah deploy pertama:
+   ```bash
+   docker exec <container> node scripts/seed-apps.js
+   ```
+6. **Domain** — `http://<app-uuid>.103.93.129.94.sslip.io` (HTTP, bukan HTTPS).
+
+### Troubleshooting Coolify
+
+| Masalah | Solusi |
+|---------|--------|
+| Login gagal, API OK | Set `ELECTRON_APP=true` di env vars |
+| Prisma connection error | Gunakan container name Postgres internal Coolify |
+| Coolify UI "payload is invalid" | Env vars di DB harus encrypted via Laravel `encrypt()` |
+| Deploy fail di start step | Start container manual: `docker compose -f <compose> --env-file <env> up -d` |
+
+Lihat `AGENTS.md` untuk detail lengkap troubleshooting.
+
+## Health Check
+
 ```bash
-npm run seed
+./scripts/health-check.sh [BASE_URL]
+# Default: http://localhost:3000
+# Cek: /api/health, login, /api/apps, cross-app secret
 ```
-Ini mengisi 8 app awal (ZGold, ZBengkel, ZBilliar, ZPOS, ZGym, Z-Resto, Z-Absen, Z-Rooms) supaya tidak mulai dari kosong. Aman dijalankan berkali-kali — otomatis dilewati kalau sudah ada data.
 
-## Cara kerja fitur Video (penting dibaca sebelum pakai)
-Video dipotong dengan mengambil **sampel dari 3 titik waktu** (sepertiga awal, tengah, akhir durasi asli), masing-masing ~20 detik, lalu disambung jadi satu video ~60 detik. Ini **heuristik sederhana**, BUKAN AI yang memahami isi video dan memilih momen paling menarik — kalau butuh itu, ada produk khusus (Opus Clip, Vizard, dsb) yang jauh lebih canggih untuk itu. Tujuannya di sini cuma bikin hasil potongan lebih dinamis dibanding motong 60 detik pertama secara linear.
+## Artikel Otomatis Harian (Cron)
 
-Caption yang diketik akan ditempel di ATAS video sepanjang durasinya (bukan subtitle yang mengikuti waktu bicara). Kalau video aslinya ≤60 detik, tidak dipotong sama sekali — caption langsung ditempel ke video utuh.
+Script `scripts/artikel-harian.ts` generate 1 artikel per hari untuk app berikutnya
+(rotasi adil), lalu publish ke `djvpri/zomet-main` (`content/artikel/<slug>-<YYYYMMDD>.md`).
 
-Video besar/panjang butuh waktu proses (bisa puluhan detik sampai beberapa menit tergantung ukuran & kecepatan server) — halaman akan otomatis cek status tiap 3 detik, tidak perlu ditunggu di depan layar.
-
-## Tidak terhubung ke Z One
-App ini **berdiri sendiri** — tidak pakai SSO, tidak baca database Z One. Daftar app yang mau dipromosikan dikelola manual lewat halaman "Kelola App", bukan otomatis sinkron dari ekosistem.
-
-## Artikel otomatis harian (cron)
-Script `scripts/artikel-harian.ts` generate 1 artikel per hari untuk app berikutnya (rotasi adil: app setelah yang terakhir di-publish, wraparound ke awal), lalu **langsung publish** ke repo `djvpri/zomet-main` (`content/artikel/<slug>-<YYYYMMDD>.md`). App baru di "Kelola App" langsung mendapat giliran berdasarkan urutan id — tanpa ubah kode. Jika hari itu sudah ada artikel published (draft di-tandai `published`), script melompat (idempotent), aman dari overlap cron.
-
-Jalankan manual / test:
 ```bash
-npm run artikel:harian:test   # self-check logika rotasi (tanpa DB, tanpa Gemini)
-DRY_RUN=1 npm run artikel:harian   # generate + simpan draft, TANPA push ke GitHub
-npm run artikel:harian             # generate + publish penuh
+npm run artikel:harian:test      # self-check rotasi (no DB/Gemini)
+DRY_RUN=1 npm run artikel:harian # generate draft, tanpa push GitHub
+npm run artikel:harian           # generate + publish penuh
 ```
-Butuh env: `DATABASE_URL`, `GEMINI_API_KEY`, `GITHUB_TOKEN`.
 
-**Setup di Railway (sekali):**
-1. Buat **service/paas cron** terpisah (mis. `zadv-cron`) memakai image hasil build yang sama.
-2. Atur **command** service tsb: `npm run artikel:harian`.
-3. Set **schedule** ke `0 0 * * *` (00:00 UTC = 07:00 WIB).
-4. Pastikan semua env (`DATABASE_URL`, `GEMINI_API_KEY`, `GITHUB_TOKEN`) ikut di-set di service cron.
+Env wajib untuk cron: `DATABASE_URL`, `GEMINI_API_KEY`, `GITHUB_TOKEN`.
 
-### Alternatif: GitHub Actions (tanpa perlu Railway cron)
-Repo sudah ada workflow `.github/workflows/artikel-harian.yml` — jalan tiap hari 07:00 WIB via GitHub Actions (tidak perlu dashboard Railway). Yang perlu di-set **satu kali** di GitHub:
-1. Buka repo `Zadv` → **Settings → Secrets and variables → Actions**.
-2. Tambah repo secrets:
-   - `DATABASE_URL` (Postgres Railway Zadv)
-   - `GEMINI_API_KEY` (AI Studio)
-   - `ZOMET_PUSH_TOKEN` — **PAT** (Personal Access Token, scope `repo`, milik akun yang punya akses push ke `djvpri/zomet-main`)
-3. Workflow langsung dijadwalkan (cron `0 0 * * *` UTC). Jalankan manual kapan pun lewat tab **Actions → artikel-harian → Run workflow**.
+### GitHub Actions (alternatif cron)
+
+Workflow `.github/workflows/artikel-harian.yml` jalan tiap 07:00 WIB.
+
+Set repo secrets di GitHub → Settings → Secrets and variables → Actions:
+- `DATABASE_URL` (Postgres)
+- `GEMINI_API_KEY`
+- `ZOMET_PUSH_TOKEN` (PAT scope `repo` untuk push ke `djvpri/zomet-main`)
+
+## Video Processing
+
+Video dipotong dengan mengambil **sampel dari 3 titik waktu** (sepertiga awal, tengah, akhir),
+masing-masing ~20 detik, lalu disambung jadi ~60 detik. Ini **heuristik sederhana**, BUKAN AI.
+
+Caption multi-baris → SRT subtitle (3 detik per baris). Caption tunggal → teks statis di bawah.
+
+Video ≤60 detik tidak dipotong. Backsound musik: ducking 30%, optional fade out, loop.
+
+Lihat `src/lib/video-processing.ts` untuk detail (termasuk bug ffmpeg yang diketahui).
+
+## Tidak Terhubung ke Z One
+
+App ini **berdiri sendiri** — tidak pakai SSO, tidak baca database Z One. Daftar app dikelola
+manual di halaman "Kelola App". Akses lintas-app hanya via header `X-Cross-App-Secret` untuk
+GET `/api/apps` (dipakai ZPos cron artikel).
+
+## Dokumentasi Tambahan
+
+- [`AGENTS.md`](AGENTS.md) — development guide untuk AI agent (struktur, conventions, commands)
+- [`API_CONTRACT.md`](API_CONTRACT.md) — semua endpoint, request/response, auth flow
