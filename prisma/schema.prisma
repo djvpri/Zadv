@@ -16,7 +16,8 @@ model PromoApp {
   accent    String
   tint      String
   url       String?
-  aktif     Boolean  @default(true)
+  aktif       Boolean  @default(true)
+  artikelAktif Boolean @default(true)
   urutan    Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -133,4 +134,11 @@ model ArtikelDraft {
   updatedAt   DateTime  @updatedAt
 
   @@index([status])
+  @@index([appId, status])
+}
+
+model Pengaturan {
+  kunci     String   @id
+  nilai     String
+  updatedAt DateTime @updatedAt
 }

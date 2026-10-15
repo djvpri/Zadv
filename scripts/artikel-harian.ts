@@ -1,6 +1,7 @@
-// Cron harian: generate 1 artikel utk app berikutnya (rotasi) lalu publish
-// langsung ke repo `djvpri/zomet-main` (content/artikel/). Dipanggil Railway
-// cron/service, mis. tiap 07:00 WIB → `npx tsx scripts/artikel-harian.ts`.
+// Cron harian: generate artikel utk SEMUA app aktif lalu publish
+// ke repo `djvpri/zomet-main` (content/artikel/). Tiap app yang
+// artikelAktif=true dapat 1 artikel per hari. Dipanggil cron VPS
+// tiap 07:00 WIB → `npx tsx scripts/artikel-harian.ts`.
 //
 // Env: DATABASE_URL, GEMINI_API_KEY, GITHUB_TOKEN (wajib), DRY_RUN=1 → skip push.
 
@@ -37,65 +38,42 @@ function parseGeminiJson(raw: string) {
   return { judul, slug, deskripsi, tags: Array.isArray(tags) ? tags : [], konten }
 }
 
-// Rotasi adil: pilih index app berikutnya SETELAH yang terakhir di-publish
-// (urutan array apps, wrap ke awal). `lastAppId` null = belum pernah → app pertama.
-export function pilihAppIdx(appIds: number[], lastAppId: number | null): number {
-  if (lastAppId != null) {
-    const i = appIds.indexOf(lastAppId)
-    if (i >= 0) return (i + 1) % appIds.length
-  }
-  return 0
+interface HasilApp {
+  appId: number
+  nama: string
+  status: 'ok' | 'skip' | 'fail'
+  judul?: string
+  url?: string
+  error?: string
 }
 
-async function main() {
-  const { startMs, yyyymmdd } = todayWib()
-
-  // Idempotent: kalau hari ini (WIB) sudah ada artikel published (manual atau cron),
-  // skip biar tidak dobel kalau cron overlap / di-jalankan ulang.
+async function prosesSatuApp(
+  app: { id: number; nama: string; tagline: string; fitur: string[]; url?: string | null },
+  yyyymmdd: string,
+  dryRun: boolean,
+): Promise<HasilApp> {
+  // Idempotent per app: skip kalau app ini sudah punya artikel published hari ini
   const sudah = await prisma.artikelDraft.findFirst({
-    where: { status: 'published', publishedAt: { gte: new Date(startMs) } },
-    select: { id: true, appId: true },
+    where: { appId: app.id, status: 'published', publishedAt: { gte: new Date(Date.now() - 24 * 3600 * 1000) } },
+    select: { id: true },
   })
-  if (sudah) {
-    console.log(`SKIP: sudah ada artikel published hari ini (draft #${sudah.id} app ${sudah.appId}).`)
-    return
-  }
+  if (sudah) return { appId: app.id, nama: app.nama, status: 'skip' }
 
-  const apps = await prisma.promoApp.findMany({ where: { aktif: true }, orderBy: { id: 'asc' } })
-  if (apps.length === 0) {
-    console.log('SKIP: tidak ada app aktif.')
-    return
-  }
-
-  const last = await prisma.artikelDraft.findFirst({
-    where: { status: 'published' },
-    orderBy: { publishedAt: 'desc' },
-    select: { appId: true },
-  })
-  const appIds = apps.map((a) => a.id)
-  const idx = pilihAppIdx(appIds, last?.appId ?? null)
-  const app = apps[idx]
-  console.log(`Rotasi: app #${app.id} ${app.nama} (dari ${apps.length} aktif).`)
-
-  // Generate via Gemini (reuse prompt & fetch dari route).
   const angle = ANGLES[Math.floor(Math.random() * ANGLES.length)].replace('{nama}', app.nama)
   const raw = await callGemini(buatPromptArtikel(app, angle))
   const { judul, slug, deskripsi, tags, konten } = parseGeminiJson(raw)
 
   const tanggal = yyyymmdd
-  const slugAkhir = `${slug}-${tanggal}` // pastikan unik tiap hari, hindari sha-overwrite di GitHub
+  const slugAkhir = `${slug}-${tanggal}`
   const pathArtikel = `content/artikel/${slugAkhir}.md`
 
   const draft = await prisma.artikelDraft.create({
     data: { appId: app.id, judul, slug, deskripsi, tags, konten, status: 'draft' },
   })
-  console.log(`Draft #${draft.id} tersimpan. Publish ke ${pathArtikel} ...`)
 
-  if (process.env.DRY_RUN === '1') {
-    console.log('DRY_RUN: push GitHub dilewati.')
-    console.log(`URL rencana: https://www.zomet.my.id/artikel/${slugAkhir}`)
-    await prisma.artikelDraft.update({ where: { id: draft.id }, data: { status: 'draft' } }).catch(() => {})
-    return
+  if (dryRun) {
+    console.log(`  DRY_RUN [${app.nama}]: skip push. URL rencana: https://www.zomet.my.id/artikel/${slugAkhir}`)
+    return { appId: app.id, nama: app.nama, status: 'ok', judul, url: `https://www.zomet.my.id/artikel/${slugAkhir}` }
   }
 
   const fileContent = buildFileContent(judul, deskripsi, tags, konten, tanggal)
@@ -107,8 +85,50 @@ async function main() {
     data: { status: 'published', publishedAt: new Date(), slug: slugAkhir },
   })
 
-  console.log(`SELESAI: ${judul}`)
-  console.log(`URL: https://www.zomet.my.id/artikel/${slugAkhir}`)
+  const url = `https://www.zomet.my.id/artikel/${slugAkhir}`
+  console.log(`  ✓ [${app.nama}] ${judul}`)
+  console.log(`    URL: ${url}`)
+  return { appId: app.id, nama: app.nama, status: 'ok', judul, url }
+}
+
+async function main() {
+  const { yyyymmdd } = todayWib()
+  const dryRun = process.env.DRY_RUN === '1'
+
+  // Cek autopost toggle dari Pengaturan
+  const setting = await prisma.pengaturan.findUnique({ where: { kunci: 'artikel_autopost' } })
+  if (setting && setting.nilai === 'false') {
+    console.log('SKIP: autopost dinonaktifkan dari dashboard.')
+    return
+  }
+
+  const apps = await prisma.promoApp.findMany({
+    where: { aktif: true, artikelAktif: true },
+    orderBy: { urutan: 'asc' },
+  })
+  if (apps.length === 0) {
+    console.log('SKIP: tidak ada app dengan artikelAktif=true.')
+    return
+  }
+
+  console.log(`Artikel harian ${yyyymmdd}: ${apps.length} app aktif.${dryRun ? ' DRY_RUN.' : ''}`)
+  const hasil: HasilApp[] = []
+
+  for (const app of apps) {
+    try {
+      const r = await prosesSatuApp(app, yyyymmdd, dryRun)
+      hasil.push(r)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`  ✕ [${app.nama}] ${msg}`)
+      hasil.push({ appId: app.id, nama: app.nama, status: 'fail', error: msg })
+    }
+  }
+
+  const ok = hasil.filter(h => h.status === 'ok').length
+  const skip = hasil.filter(h => h.status === 'skip').length
+  const fail = hasil.filter(h => h.status === 'fail').length
+  console.log(`\nSELESAI: ${ok} published, ${skip} skip, ${fail} failed.`)
 }
 
 async function isMainModule(): Promise<boolean> {

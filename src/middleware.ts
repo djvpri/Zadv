@@ -35,8 +35,23 @@ export async function middleware(req: NextRequest) {
   const isCrossApps = pathname === '/api/apps' && req.method === 'GET'
     && !!process.env.CROSS_APP_SECRET
     && req.headers.get('x-cross-app-secret') === process.env.CROSS_APP_SECRET
+  // Public artikel API: landing page app fetch /api/artikel/publik tanpa auth.
+  const isPublicArtikel = pathname.startsWith('/api/artikel/publik') && req.method === 'GET'
 
-  if (isApiAuth || isHealth || isLoginPage || isCrossApps) return NextResponse.next()
+  if (isApiAuth || isHealth || isLoginPage || isCrossApps || isPublicArtikel) {
+    // CORS untuk public artikel API — allow *.zomet.my.id
+    if (isPublicArtikel) {
+      const origin = req.headers.get('origin') || ''
+      if (origin.endsWith('.zomet.my.id') || origin === 'https://zomet.my.id') {
+        const res = NextResponse.next()
+        res.headers.set('Access-Control-Allow-Origin', origin)
+        res.headers.set('Access-Control-Allow-Methods', 'GET')
+        res.headers.set('Access-Control-Max-Age', '86400')
+        return res
+      }
+    }
+    return NextResponse.next()
+  }
 
   if (pathname.startsWith('/api/')) {
     if (!valid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
