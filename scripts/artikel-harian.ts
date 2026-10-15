@@ -5,10 +5,9 @@
 //
 // Env: DATABASE_URL, GEMINI_API_KEY, GITHUB_TOKEN (wajib), DRY_RUN=1 → skip push.
 
-import prisma from '@/lib/db'
-import { getGeminiKey, getGithubToken } from '@/lib/secrets'
-import { ANGLES, buatPromptArtikel, callGemini } from '@/lib/artikel'
-import { buildFileContent, pushToGitHub } from '@/lib/artikel'
+import prisma from '../src/lib/db'
+import { getGeminiKey, getGithubToken } from '../src/lib/secrets'
+import { ANGLES, buatPromptArtikel, callGemini, buildFileContent, pushToGitHub } from '../src/lib/artikel'
 
 // Tanggal "hari ini" dalam WIB (UTC+7). Mulai hari = pergeseran UTC agar rentang
 // idempotent dipakai konsisten antara jam publish (07:00 WIB = 00:00 UTC).
@@ -123,6 +122,8 @@ async function main() {
       console.error(`  ✕ [${app.nama}] ${msg}`)
       hasil.push({ appId: app.id, nama: app.nama, status: 'fail', error: msg })
     }
+    // Jeda 3 detik antar app agar tidak kena rate limit Gemini
+    await new Promise(r => setTimeout(r, 3000))
   }
 
   const ok = hasil.filter(h => h.status === 'ok').length
