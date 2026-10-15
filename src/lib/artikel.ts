@@ -67,6 +67,29 @@ export async function callGemini(prompt: string): Promise<string> {
   return raw
 }
 
+export function todayWib(): string {
+  const now = new Date()
+  const wib = new Date(now.getTime() + 7 * 3600 * 1000)
+  const y = wib.getUTCFullYear()
+  const m = wib.getUTCMonth()
+  const d = wib.getUTCDate()
+  return `${y}${String(m + 1).padStart(2, '0')}${String(d).padStart(2, '0')}`
+}
+
+export function parseGeminiJson(raw: string) {
+  const cleaned = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
+  // Strip semua control char — newline antar key valid di JSON, strip aman karena
+  // JSON.parse tetap handle struktur tanpa whitespace.
+  const sanitized = cleaned.replace(/[\x00-\x1f]/g, '')
+  if (sanitized.length < 2) {
+    throw new Error(`Respons Gemini kosong/singkat: len=${raw.length}, first=${JSON.stringify(raw.slice(0, 50))}`)
+  }
+  const parsed = JSON.parse(sanitized)
+  const { judul, slug, deskripsi, tags, konten } = parsed
+  if (!judul || !slug || !deskripsi || !konten) throw new Error('Format JSON dari Gemini tidak lengkap')
+  return { judul, slug, deskripsi, tags: Array.isArray(tags) ? tags : [], konten }
+}
+
 export const OWNER = 'djvpri'
 export const REPO = 'zomet-main'
 export const BRANCH = 'main'

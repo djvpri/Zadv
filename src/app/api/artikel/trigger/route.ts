@@ -1,30 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
-import { getGeminiKey, getGithubToken } from '@/lib/secrets'
-import { ANGLES, buatPromptArtikel, callGemini, buildFileContent, pushToGitHub } from '@/lib/artikel'
-
-function parseGeminiJson(raw: string) {
-  const cleaned = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
-  const sanitized = cleaned.replace(/[\x00-\x1f]/g, (ch) => {
-    if (ch === '\n') return '\\n'
-    if (ch === '\r') return '\\r'
-    if (ch === '\t') return '\\t'
-    return ''
-  })
-  const parsed = JSON.parse(sanitized)
-  const { judul, slug, deskripsi, tags, konten } = parsed
-  if (!judul || !slug || !deskripsi || !konten) throw new Error('Format JSON dari Gemini tidak lengkap')
-  return { judul, slug, deskripsi, tags: Array.isArray(tags) ? tags : [], konten }
-}
-
-function todayWib(): string {
-  const now = new Date()
-  const wib = new Date(now.getTime() + 7 * 3600 * 1000)
-  const y = wib.getUTCFullYear()
-  const m = wib.getUTCMonth()
-  const d = wib.getUTCDate()
-  return `${y}${String(m + 1).padStart(2, '0')}${String(d).padStart(2, '0')}`
-}
+import { getGithubToken } from '@/lib/secrets'
+import { ANGLES, buatPromptArtikel, callGemini, buildFileContent, pushToGitHub, parseGeminiJson, todayWib } from '@/lib/artikel'
 
 // POST /api/artikel/trigger — generate artikel untuk semua app aktif
 export async function POST() {
@@ -36,6 +13,13 @@ export async function POST() {
   if (apps.length === 0) {
     return NextResponse.json({ error: 'Tidak ada app aktif' }, { status: 400 })
   }
+
+  // Baca tujuan publish dari Pengaturan
+  const settingRows = await prisma.pengaturan.findMany({ where: { kunci: { startsWith: 'artikel_' } } })
+  const settings: Record<string, string> = {}
+  for (const r of settingRows) settings[r.kunci] = r.nilai
+  const tujuanZomet = settings.artikel_tujuan_zomet !== 'false'
+  const tujuanApp = settings.artikel_tujuan_app !== 'false'
 
   const yyyymmdd = todayWib()
   let ok = 0
@@ -56,20 +40,31 @@ export async function POST() {
       const { judul, slug, deskripsi, tags, konten } = parseGeminiJson(raw)
 
       const slugAkhir = `${slug}-${yyyymmdd}`
-      const pathArtikel = `content/artikel/${slugAkhir}.md`
 
       const draft = await prisma.artikelDraft.create({
         data: { appId: app.id, judul, slug, deskripsi, tags, konten, status: 'draft' },
       })
 
-      const fileContent = buildFileContent(judul, deskripsi, tags, konten, yyyymmdd)
-      const encoded = Buffer.from(fileContent, 'utf-8').toString('base64')
-      await pushToGitHub(getGithubToken(), pathArtikel, encoded, `feat: artikel harian - ${judul}`)
+      let published = false
 
-      await prisma.artikelDraft.update({
-        where: { id: draft.id },
-        data: { status: 'published', publishedAt: new Date(), slug: slugAkhir },
-      })
+      if (tujuanZomet) {
+        const fileContent = buildFileContent(judul, deskripsi, tags, konten, yyyymmdd)
+        const encoded = Buffer.from(fileContent, 'utf-8').toString('base64')
+        await pushToGitHub(getGithubToken(), `content/artikel/${slugAkhir}.md`, encoded, `feat: artikel harian - ${judul}`)
+        published = true
+      }
+
+      // tujuanApp: artikel tersedia via /api/artikel/publik?appId=X — DB publish cukup
+      if (tujuanApp) {
+        published = true
+      }
+
+      if (published) {
+        await prisma.artikelDraft.update({
+          where: { id: draft.id },
+          data: { status: 'published', publishedAt: new Date(), slug: slugAkhir },
+        })
+      }
 
       ok++
     } catch (e) {
