@@ -234,6 +234,7 @@ export default function ArtikelOtomatisPage() {
   const [editingTags, setEditingTags] = useState<string[]>([])
   const [editingTagInput, setEditingTagInput] = useState('')
   const [savingTag, setSavingTag] = useState(false)
+  const [selectedFoto, setSelectedFoto] = useState<FotoItem | null>(null)
 
   function startEditTags(f: FotoItem) {
     setEditingTagId(f.id)
@@ -748,7 +749,7 @@ export default function ArtikelOtomatisPage() {
                   <div key={f.id} className="bg-white/[0.02] border border-white/10 rounded-lg overflow-hidden hover:border-[#D8A23D]/30 transition-colors">
                     <div className="w-full relative" style={{ aspectRatio: '16/10' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={f.url} alt={f.filename} className="w-full h-full object-cover" />
+                      <img src={f.url} alt={f.filename} className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setSelectedFoto(f)} />
                       <button onClick={() => hapusFoto(f.id)} className="absolute top-1.5 right-1.5 bg-black/50 text-[#F87171] rounded px-1.5 py-0.5 text-[10px] opacity-60 hover:opacity-100">✕</button>
                       <div className="absolute bottom-1.5 left-1.5">
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${f.appId ? 'bg-[#D8A23D]/15 text-[#D8A23D]' : 'bg-[#60A5FA]/15 text-[#60A5FA]'}`}>
@@ -820,6 +821,50 @@ export default function ArtikelOtomatisPage() {
       )}
 
       {saving && <div className="fixed bottom-4 right-4 px-3 py-1.5 bg-[#D8A23D] text-[#1C1917] text-xs font-semibold rounded-md">Menyimpan...</div>}
+
+      {selectedFoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setSelectedFoto(null)}
+          onKeyDown={e => { if (e.key === 'Escape') setSelectedFoto(null) }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-3" onClick={e => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={selectedFoto.url}
+              alt={selectedFoto.filename}
+              className="max-w-[90vw] max-h-[75vh] object-contain rounded-lg"
+            />
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {selectedFoto.tags.length > 0 ? (
+                  selectedFoto.tags.map(t => (
+                    <span key={t} className="px-2 py-0.5 bg-[#D8A23D]/15 text-[#D8A23D] rounded text-[11px] font-semibold">{t}</span>
+                  ))
+                ) : (
+                  <span className="text-[11px] text-[#8A8378] italic">Tanpa tag</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-[#8A8378]">
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${selectedFoto.appId ? 'bg-[#D8A23D]/15 text-[#D8A23D]' : 'bg-[#60A5FA]/15 text-[#60A5FA]'}`}>
+                  {selectedFoto.appEmoji} {selectedFoto.appName || 'Global'}
+                </span>
+                <span>{selectedFoto.filename}</span>
+                <span>·</span>
+                <span>{selectedFoto.useCount > 0 ? `Dipakai ${selectedFoto.useCount}×` : 'Belum dipakai'}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedFoto(null)}
+              className="mt-1 px-3 py-1 bg-white/10 text-[#CFC9BE] rounded text-xs hover:bg-white/20"
+            >
+              Tutup (Esc)
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
