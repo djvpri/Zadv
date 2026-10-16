@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await file.arrayBuffer())
     writeFileSync(join(uploadDir, filename), buffer)
 
-    const url = `/uploads/artikel/${filename}`
+    const url = `/api/uploads/artikel/${filename}`
     const foto = await prisma.artikelFoto.create({
       data: { url, filename: file.name, tags, appId },
     })
@@ -98,8 +98,9 @@ export async function DELETE(req: Request) {
 
   const foto = await prisma.artikelFoto.delete({ where: { id } })
 
-  if (foto.url.startsWith('/uploads/')) {
-    const filePath = join(process.cwd(), 'public', foto.url)
+  if (foto.url.startsWith('/api/uploads/')) {
+    const relPath = foto.url.replace('/api/uploads/', '')
+    const filePath = join(process.cwd(), 'public', 'uploads', relPath)
     try {
       const { unlinkSync } = await import('fs')
       unlinkSync(filePath)

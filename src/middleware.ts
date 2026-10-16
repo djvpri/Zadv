@@ -38,8 +38,10 @@ export async function middleware(req: NextRequest) {
   const isCrossTrigger = pathname === '/api/artikel/trigger' && req.method === 'POST' && crossSecretOk
   // Public artikel API: landing page app fetch /api/artikel/publik tanpa auth.
   const isPublicArtikel = pathname.startsWith('/api/artikel/publik') && req.method === 'GET'
+  // Public uploads: foto artikel perlu diakses tanpa auth (landing page, dashboard preview)
+  const isPublicUpload = pathname.startsWith('/api/uploads/') && req.method === 'GET'
 
-  if (isApiAuth || isHealth || isLoginPage || isCrossApps || isCrossTrigger || isPublicArtikel) {
+  if (isApiAuth || isHealth || isLoginPage || isCrossApps || isCrossTrigger || isPublicArtikel || isPublicUpload) {
     // CORS untuk public artikel API — allow *.zomet.my.id
     if (isPublicArtikel) {
       const origin = req.headers.get('origin') || ''
