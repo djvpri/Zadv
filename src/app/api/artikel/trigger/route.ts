@@ -5,19 +5,35 @@ import { ANGLES, buatPromptArtikel, callGemini, buildFileContent, pushToGitHub, 
 
 // POST /api/artikel/trigger — generate artikel untuk semua app aktif
 export async function POST() {
-  const apps = await prisma.promoApp.findMany({
-    where: { aktif: true, artikelAktif: true },
-    orderBy: { urutan: 'asc' },
-  })
-
-  if (apps.length === 0) {
-    return NextResponse.json({ error: 'Tidak ada app aktif' }, { status: 400 })
-  }
-
-  // Baca tujuan publish dari Pengaturan
+  // Baca pengaturan dari dashboard
   const settingRows = await prisma.pengaturan.findMany({ where: { kunci: { startsWith: 'artikel_' } } })
   const settings: Record<string, string> = {}
   for (const r of settingRows) settings[r.kunci] = r.nilai
+
+  // Cek autopost
+  if (settings.artikel_autopost === 'false') {
+    return NextResponse.json({ ok: 0, fail: 0, errors: [], skip: 'autopost dinonaktifkan dari dashboard' })
+  }
+
+  // Cek jam: skip jika belum waktunya (WIB)
+  const jam = settings.artikel_jam || '07:00'
+  const settingHour = parseInt(jam.split(':')[0])
+  const nowWib = new Date(Date.now() + 7 * 3600 * 1000)
+  if (nowWib.getUTCHours() < settingHour) {
+    return NextResponse.json({ ok: 0, fail: 0, errors: [], skip: `belum waktunya (setting=${jam}, now WIB=${String(nowWib.getUTCHours()).padStart(2, '0')}:00)` })
+  }
+
+  // Hanya app yang punya web (url tidak kosong)
+  const allApps = await prisma.promoApp.findMany({
+    where: { aktif: true, artikelAktif: true, url: { not: null } },
+    orderBy: { urutan: 'asc' },
+  })
+  const apps = allApps.filter(a => a.url && a.url.trim().length > 0)
+
+  if (apps.length === 0) {
+    return NextResponse.json({ ok: 0, fail: 0, errors: [], skip: 'tidak ada app dengan web yang aktif' })
+  }
+
   const tujuanZomet = settings.artikel_tujuan_zomet !== 'false'
   const tujuanApp = settings.artikel_tujuan_app !== 'false'
 

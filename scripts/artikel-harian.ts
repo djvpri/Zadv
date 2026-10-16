@@ -89,13 +89,24 @@ async function main() {
     return
   }
 
+  // Cek jam: skip jika belum waktunya (WIB)
+  const jam = settings.artikel_jam || '07:00'
+  const settingHour = parseInt(jam.split(':')[0])
+  const nowWib = new Date(Date.now() + 7 * 3600 * 1000)
+  if (nowWib.getUTCHours() < settingHour) {
+    console.log(`SKIP: belum waktunya (setting=${jam}, now WIB=${String(nowWib.getUTCHours()).padStart(2, '0')}:00)`)
+    return
+  }
+
   const tujuanZomet = settings.artikel_tujuan_zomet !== 'false'
   const tujuanApp = settings.artikel_tujuan_app !== 'false'
 
-  const apps = await prisma.promoApp.findMany({
-    where: { aktif: true, artikelAktif: true },
+  // Hanya app yang punya web (url tidak kosong)
+  const allApps = await prisma.promoApp.findMany({
+    where: { aktif: true, artikelAktif: true, url: { not: null } },
     orderBy: { urutan: 'asc' },
   })
+  const apps = allApps.filter(a => a.url && a.url.trim().length > 0)
   if (apps.length === 0) {
     console.log('SKIP: tidak ada app dengan artikelAktif=true.')
     return

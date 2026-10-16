@@ -1,12 +1,21 @@
 name: artikel-harian
 
-# Publish artikel otomatis per hari (07:00 WIB = 00:00 UTC).
+# Publish artikel otomatis per hari.
 # Trigger endpoint Zadv VPS — VPS yang koneksi DB + Gemini, bukan GH Actions.
 # GH Actions cuma kirim HTTP POST, tidak butuh DATABASE_URL/GEMINI_KEY.
+#
+# Multi-cron covering semua JAM_OPTIONS dashboard (06/07/08/09/12 WIB).
+# Endpoint idempotent (24h window) + jam check → aman fire multiple times.
+# GH Actions queue delay 1-5 jam tidak masalah: endpoint skip jika belum waktunya,
+# cron berikutnya akan retry.
 
 on:
   schedule:
-    - cron: '0 0 * * *'   # 00:00 UTC = 07:00 WIB
+    - cron: '0 23 * * *'  # 06:00 WIB
+    - cron: '0 0 * * *'   # 07:00 WIB
+    - cron: '0 1 * * *'   # 08:00 WIB
+    - cron: '0 2 * * *'   # 09:00 WIB
+    - cron: '0 5 * * *'   # 12:00 WIB
   workflow_dispatch: {}   # izinkan jalankan manual dari tab Actions
 
 jobs:
@@ -18,9 +27,12 @@ jobs:
           ZADV_URL: ${{ secrets.ZADV_URL }}
           CROSS_APP_SECRET: ${{ secrets.CROSS_APP_SECRET }}
         run: |
-          STATUS=$(curl -s -o /tmp/resp.json -w "%{http_code}"             -X POST "${ZADV_URL}/api/artikel/trigger"             -H "X-Cross-App-Secret: ${CROSS_APP_SECRET}")
+          STATUS=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
+            -X POST "${ZADV_URL}/api/artikel/trigger" \
+            -H "X-Cross-App-Secret: ${CROSS_APP_SECRET}")
           echo "HTTP $STATUS"
           cat /tmp/resp.json
+          # 200 = sukses (generate atau skip idempotent). Non-200 = error.
           if [ "$STATUS" != "200" ]; then
             echo "Trigger gagal (HTTP $STATUS)"
             exit 1
