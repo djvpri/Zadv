@@ -229,6 +229,36 @@ export default function ArtikelOtomatisPage() {
     muatFoto()
   }
 
+  // Edit tag foto di galeri (chip editor)
+  const [editingTagId, setEditingTagId] = useState<number | null>(null)
+  const [editingTags, setEditingTags] = useState<string[]>([])
+  const [editingTagInput, setEditingTagInput] = useState('')
+  const [savingTag, setSavingTag] = useState(false)
+
+  function startEditTags(f: FotoItem) {
+    setEditingTagId(f.id)
+    setEditingTags([...f.tags])
+    setEditingTagInput('')
+  }
+
+  function addEditingTag() {
+    const t = editingTagInput.trim().toLowerCase()
+    if (t && !editingTags.includes(t)) setEditingTags([...editingTags, t])
+    setEditingTagInput('')
+  }
+
+  async function saveTags(id: number) {
+    setSavingTag(true)
+    await fetch(`/api/artikel/foto?id=${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: editingTags }),
+    })
+    setSavingTag(false)
+    setEditingTagId(null)
+    muatFoto()
+  }
+
   function addFotoTag() {
     const t = fotoTagInput.trim().toLowerCase()
     if (t && !fotoTags.includes(t)) {
@@ -727,9 +757,36 @@ export default function ArtikelOtomatisPage() {
                       </div>
                     </div>
                     <div className="p-2">
-                      <div className="flex flex-wrap gap-1 mb-1">
-                        {f.tags.map(t => <span key={t} className="px-1.5 py-0.5 bg-[#D8A23D]/12 text-[#D8A23D] rounded text-[10px] font-semibold">{t}</span>)}
-                      </div>
+                      {editingTagId === f.id ? (
+                        <div className="mb-1">
+                          <div className="flex flex-wrap gap-1 mb-1">
+                            {editingTags.map(t => (
+                              <span key={t} className="px-1.5 py-0.5 bg-[#D8A23D]/12 text-[#D8A23D] rounded text-[10px] font-semibold flex items-center gap-1">
+                                {t}
+                                <button onClick={() => setEditingTags(editingTags.filter(x => x !== t))} className="opacity-60 hover:opacity-100">✕</button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex gap-1">
+                            <input
+                              value={editingTagInput}
+                              onChange={e => setEditingTagInput(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addEditingTag() } }}
+                              onBlur={addEditingTag}
+                              placeholder="Tambah tag..."
+                              className="flex-1 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[10px] text-[#CFC9BE] focus:outline-none focus:border-[#D8A23D]"
+                            />
+                            <button onClick={() => saveTags(f.id)} disabled={savingTag} className="px-2 py-0.5 bg-[#D8A23D] text-[#1C1917] rounded text-[10px] font-semibold disabled:opacity-50">✓</button>
+                            <button onClick={() => setEditingTagId(null)} className="px-1.5 py-0.5 bg-white/5 text-[#8A8378] rounded text-[10px]">Batal</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1 mb-1 group">
+                          {f.tags.length === 0 && <span className="text-[10px] text-[#8A8378] italic">Tanpa tag</span>}
+                          {f.tags.map(t => <span key={t} className="px-1.5 py-0.5 bg-[#D8A23D]/12 text-[#D8A23D] rounded text-[10px] font-semibold">{t}</span>)}
+                          <button onClick={() => startEditTags(f)} className="px-1.5 py-0.5 bg-white/5 border border-white/10 rounded text-[10px] text-[#8A8378] hover:text-[#D8A23D] hover:border-[#D8A23D] opacity-0 group-hover:opacity-100 transition-opacity">✎ Edit</button>
+                        </div>
+                      )}
                       <div className="text-[10px] text-[#8A8378]">{f.useCount > 0 ? `Dipakai ${f.useCount}×` : 'Belum dipakai'}</div>
                     </div>
                   </div>

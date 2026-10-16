@@ -90,6 +90,26 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok, fail, results })
 }
 
+// PATCH /api/artikel/foto?id=<n> — update tags
+// Body: { tags: string[] }
+export async function PATCH(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const id = Number(searchParams.get('id'))
+  if (!id) return NextResponse.json({ error: 'id wajib' }, { status: 400 })
+
+  const body = await req.json()
+  const tags = Array.isArray(body.tags)
+    ? body.tags.map((t: string) => t.trim().toLowerCase()).filter(Boolean)
+    : []
+
+  const foto = await prisma.artikelFoto.update({
+    where: { id },
+    data: { tags },
+  })
+
+  return NextResponse.json({ ok: true, id: foto.id, tags: foto.tags })
+}
+
 // DELETE /api/artikel/foto?id=<n>
 export async function DELETE(req: Request) {
   const { searchParams } = new URL(req.url)
