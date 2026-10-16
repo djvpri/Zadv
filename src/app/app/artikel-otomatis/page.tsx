@@ -78,10 +78,12 @@ export default function ArtikelOtomatisPage() {
   const [ideAppId, setIdeAppId] = useState<string>('')
 
   // Foto form
-  const [fotoFile, setFotoFile] = useState<File | null>(null)
+  const [fotoFiles, setFotoFiles] = useState<File[]>([])
   const [fotoTags, setFotoTags] = useState<string[]>([])
   const [fotoTagInput, setFotoTagInput] = useState('')
   const [fotoAppId, setFotoAppId] = useState<string>('')
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
+  const [dragOver, setDragOver] = useState(false)
 
   const muat = useCallback(async () => {
     setLoading(true)
@@ -188,16 +190,30 @@ export default function ArtikelOtomatisPage() {
 
   // Foto handlers
   async function uploadFoto() {
-    if (!fotoFile) return
+    if (fotoFiles.length === 0) return
+    setUploadProgress({ done: 0, total: fotoFiles.length })
     const formData = new FormData()
-    formData.append('file', fotoFile)
+    for (const f of fotoFiles) formData.append('files', f)
     formData.append('tags', fotoTags.join(','))
     formData.append('appId', fotoAppId)
     await fetch('/api/artikel/foto', { method: 'POST', body: formData })
-    setFotoFile(null)
+    setUploadProgress(null)
+    setFotoFiles([])
     setFotoTags([])
     setFotoTagInput('')
     muatFoto()
+  }
+
+  function handleFileSelect(files: FileList | null) {
+    if (!files) return
+    const valid = Array.from(files).filter(f =>
+      ['image/jpeg', 'image/png', 'image/webp'].includes(f.type) && f.size <= 2 * 1024 * 1024
+    )
+    setFotoFiles(prev => [...prev, ...valid])
+  }
+
+  function removeFotoFile(idx: number) {
+    setFotoFiles(prev => prev.filter((_, i) => i !== idx))
   }
 
   async function hapusFoto(id: number) {
@@ -584,24 +600,51 @@ export default function ArtikelOtomatisPage() {
           {/* Upload */}
           <div className="rounded-lg bg-white/[0.03] border border-white/10 p-4 mb-3.5">
             <p className="text-[10px] text-[#8A8378] uppercase tracking-wide mb-3">Upload Foto</p>
-            <div className="flex items-center gap-3 mb-3">
-              <label className="flex-1 border-2 border-dashed border-white/15 rounded-lg py-5 px-4 text-center cursor-pointer hover:border-[#D8A23D] hover:bg-[#D8A23D]/4 transition-all">
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) => setFotoFile(e.target.files?.[0] || null)}
-                />
-                <span className="text-2xl opacity-50 block mb-1">{fotoFile ? '✓' : '📷'}</span>
-                <span className="text-xs text-[#CFC9BE] font-semibold">{fotoFile ? fotoFile.name : 'Drag foto atau klik'}</span>
-                <span className="text-[10px] text-[#8A8378] block mt-0.5">JPG, PNG, WebP · max 2MB</span>
-              </label>
+            <div
+              className={`border-2 border-dashed rounded-lg py-6 px-4 text-center cursor-pointer transition-all ${dragOver ? 'border-[#D8A23D] bg-[#D8A23D]/8' : 'border-white/15 hover:border-[#D8A23D] hover:bg-[#D8A23D]/4'}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFileSelect(e.dataTransfer.files) }}
+              onClick={() => document.getElementById('foto-input')?.click()}
+            >
+              <input
+                id="foto-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFileSelect(e.target.files)}
+              />
+              <span className="text-3xl opacity-50 block mb-1">📷</span>
+              <span className="text-xs text-[#CFC9BE] font-semibold">Drag foto atau klik</span>
+              <span className="text-[10px] text-[#8A8378] block mt-0.5">JPG, PNG, WebP · max 2MB per file · multiple OK</span>
             </div>
 
-            {fotoFile && (
+            {fotoFiles.length > 0 && (
               <>
-                <div className="mb-3">
-                  <label className="text-[10px] text-[#8A8378] uppercase tracking-wide block mb-1.5">Tag Foto</label>
+                {/* Thumbnail preview grid */}
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-[#D8A23D] uppercase tracking-wide">{fotoFiles.length} foto dipilih</span>
+                    <button onClick={() => setFotoFiles([])} className="text-[10px] text-[#F87171] hover:opacity-100 opacity-60">Hapus semua</button>
+                  </div>
+                  <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))' }}>
+                    {fotoFiles.map((f, i) => (
+                      <div key={i} className="relative bg-white/[0.02] border border-white/10 rounded-md overflow-hidden">
+                        <div className="relative" style={{ aspectRatio: '1' }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
+                          <button onClick={(e) => { e.stopPropagation(); removeFotoFile(i) }} className="absolute top-1 right-1 bg-black/60 text-[#F87171] rounded px-1 py-0.5 text-[9px] opacity-70 hover:opacity-100">✕</button>
+                        </div>
+                        <div className="px-1 py-0.5 text-[9px] text-[#8A8378] truncate">{f.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tags + app */}
+                <div className="mt-3">
+                  <label className="text-[10px] text-[#8A8378] uppercase tracking-wide block mb-1.5">Tag (untuk semua foto)</label>
                   <div className="flex items-center gap-1.5 flex-wrap px-2.5 py-1.5 bg-white/5 border border-white/15 rounded-md min-h-[38px]">
                     {fotoTags.map(t => (
                       <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#D8A23D]/15 text-[#D8A23D] rounded-full text-[11px] font-semibold">
@@ -624,7 +667,7 @@ export default function ArtikelOtomatisPage() {
                     ))}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mt-3">
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] text-[#8A8378] uppercase tracking-wide">Assign ke App</label>
                     <select
@@ -632,11 +675,25 @@ export default function ArtikelOtomatisPage() {
                       onChange={(e) => setFotoAppId(e.target.value)}
                       className="bg-white/5 border border-white/15 rounded-md px-3 py-1.5 text-[13px] font-medium text-[#CFC9BE] outline-none cursor-pointer"
                     >
-                      <option value=""> Global (semua app)</option>
+                      <option value="">🌐 Global (semua app)</option>
                       {settings.apps.filter(a => a.punyaWeb).map(a => <option key={a.id} value={a.id}>{a.emoji} {a.nama}</option>)}
                     </select>
                   </div>
-                  <button onClick={uploadFoto} className="ml-auto px-4 py-2 rounded-md bg-[#D8A23D] text-[#1C1917] text-xs font-bold cursor-pointer hover:bg-[#E3B458]">Upload Foto</button>
+                  <div className="ml-auto flex flex-col items-end gap-1">
+                    {uploadProgress && (
+                      <div className="flex items-center gap-2 text-[11px] text-[#D8A23D]">
+                        <div className="w-3.5 h-3.5 border-2 border-[#D8A23D]/30 border-t-[#D8A23D] rounded-full animate-spin" />
+                        Uploading...
+                      </div>
+                    )}
+                    <button
+                      onClick={uploadFoto}
+                      disabled={!!uploadProgress}
+                      className="px-4 py-2 rounded-md bg-[#D8A23D] text-[#1C1917] text-xs font-bold cursor-pointer hover:bg-[#E3B458] disabled:opacity-50"
+                    >
+                      {uploadProgress ? 'Uploading...' : `Upload ${fotoFiles.length} Foto`}
+                    </button>
+                  </div>
                 </div>
               </>
             )}
