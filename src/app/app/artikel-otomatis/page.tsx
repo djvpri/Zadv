@@ -77,13 +77,16 @@ export default function ArtikelOtomatisPage() {
   const [ideTeks, setIdeTeks] = useState('')
   const [ideAppId, setIdeAppId] = useState<string>('')
 
-  // Foto form
-  const [fotoFiles, setFotoFiles] = useState<File[]>([])
+  // Foto form — simpan {file, url} agar blob URL tidak bocor
+  const [fotoFiles, setFotoFiles] = useState<{ file: File; url: string }[]>([])
   const [fotoTags, setFotoTags] = useState<string[]>([])
   const [fotoTagInput, setFotoTagInput] = useState('')
   const [fotoAppId, setFotoAppId] = useState<string>('')
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
+
+  // Revoke semua blob URL saat unmount / clear
+  useEffect(() => () => { fotoFiles.forEach(f => URL.revokeObjectURL(f.url)) }, [fotoFiles])
 
   const muat = useCallback(async () => {
     setLoading(true)
@@ -193,10 +196,12 @@ export default function ArtikelOtomatisPage() {
     if (fotoFiles.length === 0) return
     setUploadProgress({ done: 0, total: fotoFiles.length })
     const formData = new FormData()
-    for (const f of fotoFiles) formData.append('files', f)
+    for (const f of fotoFiles) formData.append('files', f.file)
     formData.append('tags', fotoTags.join(','))
     formData.append('appId', fotoAppId)
     await fetch('/api/artikel/foto', { method: 'POST', body: formData })
+    // Revoke blob URL sebelum clear
+    fotoFiles.forEach(f => URL.revokeObjectURL(f.url))
     setUploadProgress(null)
     setFotoFiles([])
     setFotoTags([])
@@ -209,11 +214,14 @@ export default function ArtikelOtomatisPage() {
     const valid = Array.from(files).filter(f =>
       ['image/jpeg', 'image/png', 'image/webp'].includes(f.type) && f.size <= 2 * 1024 * 1024
     )
-    setFotoFiles(prev => [...prev, ...valid])
+    setFotoFiles(prev => [...prev, ...valid.map(file => ({ file, url: URL.createObjectURL(file) }))])
   }
 
   function removeFotoFile(idx: number) {
-    setFotoFiles(prev => prev.filter((_, i) => i !== idx))
+    setFotoFiles(prev => {
+      URL.revokeObjectURL(prev[idx].url)
+      return prev.filter((_, i) => i !== idx)
+    })
   }
 
   async function hapusFoto(id: number) {
@@ -626,17 +634,17 @@ export default function ArtikelOtomatisPage() {
                 <div className="mt-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] text-[#D8A23D] uppercase tracking-wide">{fotoFiles.length} foto dipilih</span>
-                    <button onClick={() => setFotoFiles([])} className="text-[10px] text-[#F87171] hover:opacity-100 opacity-60">Hapus semua</button>
+                    <button onClick={() => { fotoFiles.forEach(f => URL.revokeObjectURL(f.url)); setFotoFiles([]) }} className="text-[10px] text-[#F87171] hover:opacity-100 opacity-60">Hapus semua</button>
                   </div>
                   <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))' }}>
                     {fotoFiles.map((f, i) => (
                       <div key={i} className="relative bg-white/[0.02] border border-white/10 rounded-md overflow-hidden">
                         <div className="relative" style={{ aspectRatio: '1' }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={URL.createObjectURL(f)} alt={f.name} className="w-full h-full object-cover" />
+                          <img src={f.url} alt={f.file.name} className="w-full h-full object-cover" />
                           <button onClick={(e) => { e.stopPropagation(); removeFotoFile(i) }} className="absolute top-1 right-1 bg-black/60 text-[#F87171] rounded px-1 py-0.5 text-[9px] opacity-70 hover:opacity-100">✕</button>
                         </div>
-                        <div className="px-1 py-0.5 text-[9px] text-[#8A8378] truncate">{f.name}</div>
+                        <div className="px-1 py-0.5 text-[9px] text-[#8A8378] truncate">{f.file.name}</div>
                       </div>
                     ))}
                   </div>
