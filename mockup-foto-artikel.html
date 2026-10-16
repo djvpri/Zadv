@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Foto Artikel</title>
+<style>
+  :root {
+    --bg: #1C1917;
+    --bg-card: rgba(255,255,255,0.03);
+    --border: rgba(255,255,255,0.1);
+    --text: #CFC9BE;
+    --text-bright: #E7E2DC;
+    --muted: #8A8378;
+    --gold: #D8A23D;
+    --gold-hover: #E3B458;
+    --green: #4ADE80;
+    --yellow: #FBBF24;
+    --red: #F87171;
+    --blue: #60A5FA;
+    --purple: #A78BFA;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, system-ui, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-global { background: rgba(96,165,250,0.15); color: var(--blue); }
+  .badge-app { background: rgba(216,162,61,0.15); color: var(--gold); }
+  .badge-used { background: rgba(138,131,120,0.15); color: var(--muted); }
+
+  .btn-gold {
+    background: var(--gold);
+    color: var(--bg);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-gold:hover { background: var(--gold-hover); }
+  .btn-gold:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 11px; font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text); }
+  .btn-danger {
+    background: transparent;
+    color: var(--red);
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.6;
+  }
+  .btn-danger:hover { opacity: 1; }
+
+  .select {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text);
+    outline: none;
+    cursor: pointer;
+  }
+  .select:focus { border-color: var(--gold); }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 28px;
+    text-align: center;
+    transition: all .2s;
+    cursor: pointer;
+    background: rgba(255,255,255,0.01);
+  }
+  .drop-zone:hover {
+    border-color: var(--gold);
+    background: rgba(216,162,61,0.04);
+  }
+  .drop-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    opacity: 0.5;
+  }
+  .drop-text {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .drop-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* Tag input */
+  .tag-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    min-height: 38px;
+  }
+  .tag-input-row:focus-within { border-color: var(--gold); }
+  .tag-pill-removable {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: rgba(216,162,61,0.15);
+    color: var(--gold);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .tag-pill-removable .x {
+    cursor: pointer;
+    opacity: 0.6;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .tag-pill-removable .x:hover { opacity: 1; }
+  .tag-input-field {
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    flex: 1;
+    min-width: 100px;
+  }
+  .tag-input-field::placeholder { color: var(--muted); }
+
+  /* Foto grid */
+  .foto-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .foto-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color .15s;
+  }
+  .foto-card:hover { border-color: rgba(216,162,61,0.3); }
+  .foto-thumb {
+    width: 100%;
+    aspect-ratio: 16/10;
+    background: rgba(255,255,255,0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .foto-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .foto-thumb-placeholder {
+    font-size: 28px;
+    opacity: 0.3;
+  }
+  .foto-overlay {
+    position: absolute;
+    top: 6px; right: 6px;
+    display: flex;
+    gap: 4px;
+  }
+  .foto-body {
+    padding: 8px 10px;
+  }
+  .foto-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+  .foto-tag {
+    padding: 1px 6px;
+    background: rgba(216,162,61,0.12);
+    color: var(--gold);
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .foto-meta {
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .foto-app-badge {
+    position: absolute;
+    bottom: 6px; left: 6px;
+  }
+
+  .emoji { font-size: 16px; flex-shrink: 0; }
+
+  .flex { display: flex; }
+  .items-center { align-items: center; }
+  .items-end { align-items: flex-end; }
+  .gap-2 { gap: 8px; }
+  .gap-3 { gap: 12px; }
+  .gap-4 { gap: 16px; }
+  .justify-between { justify-content: space-between; }
+  .flex-wrap { flex-wrap: wrap; }
+  .ml-auto { margin-left: auto; }
+  .flex-col { flex-direction: column; }
+  .flex-1 { flex: 1; }
+
+  .label-sm { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .upload-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .upload-preview {
+    width: 80px;
+    height: 50px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    opacity: 0.3;
+    flex-shrink: 0;
+  }
+
+  .priority-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .priority-step:last-child { border-bottom: none; }
+  .priority-num {
+    width: 22px; height: 22px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+  }
+  .tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px; height: 18px;
+    border-radius: 999px;
+    font-size: 10px;
+    margin-left: 6px;
+    padding: 0 5px;
+  }
+  .tab.active .tab-count { background: rgba(216,162,61,0.2); color: var(--gold); }
+  .tab:not(.active) .tab-count { background: rgba(255,255,255,0.08); color: var(--muted); }
+
+  .quick-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chip {
+    padding: 3px 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .chip:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(216,162,61,0.08);
+  }
+
+  .section-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 14px 0;
+  }
+
+  .empty-thumb-1 { background: linear-gradient(135deg, #2a2520, #3a3025); }
+  .empty-thumb-2 { background: linear-gradient(135deg, #202a28, #253a35); }
+  .empty-thumb-3 { background: linear-gradient(135deg, #2a2028, #3a2535); }
+  .empty-thumb-4 { background: linear-gradient(135deg, #28282a, #353538); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ============ HEADER ============ -->
+  <div class="flex items-center justify-between" style="margin-bottom:20px;">
+    <h2 style="font-size:14px;font-weight:600;color:var(--text);">Foto <span style="color:var(--gold);">Artikel</span></h2>
+    <div class="flex items-center gap-3">
+      <span class="stat-pill" style="background:rgba(96,165,250,0.15);color:var(--blue);">4 global</span>
+      <span class="stat-pill" style="background:rgba(216,162,61,0.15);color:var(--gold);">6 per-app</span>
+      <span class="stat-pill" style="background:rgba(138,131,120,0.15);color:var(--muted);">2 used</span>
+    </div>
+  </div>
+
+  <!-- ============ UPLOAD ZONE ============ -->
+  <div class="card">
+    <p class="card-label">Upload Foto</p>
+
+    <!-- Drop zone -->
+    <div class="drop-zone">
+      <div class="drop-icon"></div>
+      <div class="drop-text">Drag foto ke sini atau klik untuk pilih</div>
+      <div class="drop-hint">JPG, PNG, WebP · max 2MB · multi-select supported</div>
+    </div>
+
+    <!-- Upload config (shown after foto selected) -->
+    <div style="margin-top:14px;">
+      <div class="upload-row" style="margin-bottom:12px;">
+        <div class="upload-preview"></div>
+        <div class="flex-1 flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <span style="font-size:12px;color:var(--text-bright);font-weight:600;">kasir-toko-depan.jpg</span>
+            <span style="font-size:10px;color:var(--muted);">128KB</span>
+          </div>
+          <span class="label-sm">Tag Foto</span>
+        </div>
+      </div>
+
+      <!-- Tag input -->
+      <div class="tag-input-row">
+        <span class="tag-pill-removable">kasir <span class="x">✕</span></span>
+        <span class="tag-pill-removable">toko <span class="x">✕</span></span>
+        <span class="tag-pill-removable">umkm <span class="x">✕</span></span>
+        <input type="text" class="tag-input-field" placeholder="Ketik tag + Enter..." />
+      </div>
+
+      <!-- Quick tag chips -->
+      <div style="margin-top:8px;">
+        <div class="quick-chips">
+          <span style="font-size:10px;color:var(--muted);margin-right:4px;align-self:center;">Saran tag:</span>
+          <span class="chip">+ kasir</span>
+          <span class="chip">+ gym</span>
+          <span class="chip">+ kamar</span>
+          <span class="chip">+ umkm</span>
+          <span class="chip">+ toko</span>
+          <span class="chip">+ sukses</span>
+          <span class="chip">+ tips</span>
+          <span class="chip">+ bengkel</span>
+          <span class="chip">+ restoran</span>
+        </div>
+      </div>
+
+      <!-- App selector + submit -->
+      <div class="flex items-center gap-3" style="margin-top:14px;">
+        <div class="flex flex-col gap-1">
+          <span class="label-sm">Assign ke App</span>
+          <select class="select">
+            <option> Global (semua app)</option>
+            <option> Z1 Pos</option>
+            <option> ZXGym</option>
+            <option> ZXRoom</option>
+          </select>
+        </div>
+        <button class="btn-gold ml-auto" style="margin-top:16px;">Upload Foto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TABS ============ -->
+  <div class="tabs">
+    <div class="tab active">Semua <span class="tab-count">10</span></div>
+    <div class="tab"> Global <span class="tab-count">4</span></div>
+    <div class="tab"> Z1 Pos <span class="tab-count">2</span></div>
+    <div class="tab"> ZXGym <span class="tab-count">2</span></div>
+    <div class="tab"> ZXRoom <span class="tab-count">2</span></div>
+  </div>
+
+  <!-- ============ FOTO GRID ============ -->
+  <div class="card">
+    <div class="card-header">
+      <p class="card-label" style="margin:0;">Galeri Foto</p>
+      <div class="flex items-center gap-2">
+        <span class="label-sm">Filter tag:</span>
+        <select class="select" style="padding:4px 10px;font-size:12px;">
+          <option>Semua tag</option>
+          <option>kasir</option>
+          <option>gym</option>
+          <option>umkm</option>
+          <option>sukses</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="foto-grid">
+
+      <!-- Foto 1: Z1 Pos specific -->
+      <div class="foto-card">
+        <div class="foto-thumb empty-thumb-1">
+          <span class="foto-thumb-placeholder"></span>
+          <div class="foto-overlay">
+            <button class="btn-danger" style="background:rgba(0,0,0,0.5);border-radius:4px;padding:2px 6px;">✕</button>
+          </div>
+          <div class="foto-app-badge">
+            <span class="badge badge-app"> Z1 Pos</span>
+          </div>
+        </div>
+        <div class="foto-body">
+          <div class="foto-tags">
+            <span class="foto-tag">kasir</span>
+            <span class="foto-tag">toko</span>
+          </div>
+          <div class="foto-meta">Dipakai 2× · 15 Oct</div>
+        </div>
+      </div>
+
+      <!-- Foto 2: Z1 Pos specific -->
+      <div class="foto-card">
+        <div class="foto-thumb empty-thumb-2">
+          <span class="foto-thumb-placeholder"></span>
+          <div class="foto-overlay">
+            <button class="btn-danger" style="background:rgba(0,0,0,0.5);border-radius:4px;padding:2px 6px;">✕</button>
+          </div>
+          <div class="foto-app-badge">
+            <span class="badge badge-app"> Z1 Pos</span>
+          </div>
+        </div>
+        <div class="foto-body">
+          <div class="foto-tags">
+            <span class="foto-tag">kasir</span>
+            <span class="foto-tag">umkm</span>
+          </div>
+          <div class="foto-meta">Belum dipakai</div>
+        </div>
+      </div>
+
+      <!-- Foto 3: ZXGym specific -->
+      <div class="foto-card">
+        <div class="foto-thumb empty-thumb-3">
+          <span class="foto-thumb-placeholder"></span>
+          <div class="foto-overlay">
+            <button class="btn-danger" style="background:rgba(0,0,0,0.5);border-radius:4px;padding:2px 6px;">✕</button>
+          </div>
+          <div class="foto-app-badge">
+            <span class="badge badge-app"> ZXGym</span>
+          </div>
+        </div>
+        <div class="foto-body">
+          <div class="foto-tags">
+            <span class="foto-tag">gym</span>
+            <span class="foto-tag">member</span>
+          </div>
+          <div class="foto-meta">Dipakai 1× · 15 Oct</div>
+        </div>
+      </div>
+
+      <!-- Foto 4: ZXGym specific -->
+      <div class="foto-card">
+        <div class="foto-thumb empty-thumb-1">
+          <span class="foto-thumb-placeholder"></span>
+          <div class="foto-overlay">
+            <button class="btn-danger" style="background:rgba(0,0,0,0.5);border-radius:4px;padding:2px 6px;">✕</button>
+          </div>
+          <div class="foto-app-badge">
+            <span class="badge badge-app"> ZXGym</span>
+          </div>
+        </div>
+        <div class="foto-body">
+          <div class="foto-tags">
+            <span class="foto-tag">gym</span>
+            <span class="foto-tag">tips</span>
+          </div>
+          <div class="foto-meta">Belum dipakai</div>
+        </div>
+      </div>
+
+      <!-- Foto 5: ZXRoom specific -->
+      <div class="foto-card">
+        <div class="foto-thumb empty-thumb-4">
+          <span class="foto-thumb-placeholder"></span>
+          <div class="foto-overlay">
+            <button class="btn-danger" style="background:rgba(0,0,0,0.5);border-radius:4px;padding:2px 6px;">✕</button>
+          </div>
+          <div class="foto-app-badge">
+            <span class="badge badge-app"> ZXRoom</span>
+          </div>
+        </div>
+        <div class="foto-body">
+          <div class="foto-tags">
+            <span class="foto-tag">kamar</span>
+            <span class="foto-tag">booking</span>
+          </div>
+          <div class="foto-meta">Belum dipakai</div>
+        </div>
+      </div>
+
+      <!-- Foto 6: ZXRoom specific -->
+      <div class="foto-card">
+        <div class="foto-thumb empty-thumb-2">
+          <span class="foto-thumb-placeholder"></span>
+          <div class="foto-overlay">
+            <button class="btn-danger" style="background:rgba(0,0,0,0.5);border-radius:4px;padding:2px 6px;">✕</button>
+          </div>
+          <div class="foto-app-badge">
+            <span class="badge badge-app"> ZXRoom</span>
+          </div>
+        </div>
+        <div class="foto-body">
+          <div class="foto-tags">
+            <span class="foto-tag">kamar</span>
+            <span class="foto-tag">sukses</span>
+          </div>
+          <div class="foto-meta">Belum dipakai</div>
+        </div>
+      </div>
+
+      <!-- Foto 7: Global -->
+      <div class="foto-card">
+        <div class="foto-thumb empty-thumb-3">
+          <span class="foto-thumb-placeholder"></span>
+          <div class="foto-overlay">
+            <button class="btn-danger" style="background:rgba(0,0,0,0.5);border-radius:4px;padding:2px 6px;">✕</button>
+          </div>
+          <div class="foto-app-badge">
+            <span class="badge badge-global"> Global</span>
+          </div>
+        </div>
+        <div class="foto-body">
+          <div class="foto-tags">
+            <span class="foto-tag">umkm</span>
+            <span class="foto-tag">sukses</span>
+          </div>
+          <div class="foto-meta">Dipakai 3× · fallback</div>
+        </div>
+      </div>
+
+      <!-- Foto 8: Global -->
+      <div class="foto-card">
+        <div class="foto-thumb empty-thumb-4">
+          <span class="foto-thumb-placeholder"></span>
+          <div class="foto-overlay">
+            <button class="btn-danger" style="background:rgba(0,0,0,0.5);border-radius:4px;padding:2px 6px;">✕</button>
+          </div>
+          <div class="foto-app-badge">
+            <span class="badge badge-global"> Global</span>
+          </div>
+        </div>
+        <div class="foto-body">
+          <div class="foto-tags">
+            <span class="foto-tag">umkm</span>
+            <span class="foto-tag">tips</span>
+          </div>
+          <div class="foto-meta">Belum dipakai</div>
+        </div>
+      </div>
+
+      <!-- Foto 9: Global -->
+      <div class="foto-card">
+        <div class="foto-thumb empty-thumb-1">
+          <span class="foto-thumb-placeholder"></span>
+          <div class="foto-overlay">
+            <button class="btn-danger" style="background:rgba(0,0,0,0.5);border-radius:4px;padding:2px 6px;">✕</button>
+          </div>
+          <div class="foto-app-badge">
+            <span class="badge badge-global"> Global</span>
+          </div>
+        </div>
+        <div class="foto-body">
+          <div class="foto-tags">
+            <span class="foto-tag">bisnis</span>
+            <span class="foto-tag">digital</span>
+          </div>
+          <div class="foto-meta">Belum dipakai</div>
+        </div>
+      </div>
+
+      <!-- Foto 10: Global -->
+      <div class="foto-card">
+        <div class="foto-thumb empty-thumb-2">
+          <span class="foto-thumb-placeholder"></span>
+          <div class="foto-overlay">
+            <button class="btn-danger" style="background:rgba(0,0,0,0.5);border-radius:4px;padding:2px 6px;">✕</button>
+          </div>
+          <div class="foto-app-badge">
+            <span class="badge badge-global"> Global</span>
+          </div>
+        </div>
+        <div class="foto-body">
+          <div class="foto-tags">
+            <span class="foto-tag">sukses</span>
+            <span class="foto-tag">umkm</span>
+          </div>
+          <div class="foto-meta">Belum dipakai</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ MATCH PRIORITY ============ -->
+  <div class="card" style="background:rgba(167,139,250,0.05);border-color:rgba(167,139,250,0.15);">
+    <p class="card-label" style="color:var(--purple);"> Cara Pilih Foto untuk Artikel</p>
+
+    <div class="priority-step">
+      <div class="priority-num" style="background:rgba(216,162,61,0.2);color:var(--gold);">1</div>
+      <div class="flex-1">
+        <div style="font-size:12px;font-weight:600;color:var(--text-bright);">App + tag cocok</div>
+        <div style="font-size:11px;color:var(--muted);">Foto milik app ini, tag cocok topik artikel. Contoh: Z1 Pos artikel "kasir" → foto tag "kasir"</div>
+      </div>
+      <span class="badge badge-app">best match</span>
+    </div>
+
+    <div class="priority-step">
+      <div class="priority-num" style="background:rgba(216,162,61,0.15);color:var(--gold);">2</div>
+      <div class="flex-1">
+        <div style="font-size:12px;font-weight:600;color:var(--text-bright);">App, tag apa saja</div>
+        <div style="font-size:11px;color:var(--muted);">Foto milik app ini, tag tidak cocok tapi masih relevan app. Random pick.</div>
+      </div>
+      <span class="badge badge-app">app fallback</span>
+    </div>
+
+    <div class="priority-step">
+      <div class="priority-num" style="background:rgba(96,165,250,0.15);color:var(--blue);">3</div>
+      <div class="flex-1">
+        <div style="font-size:12px;font-weight:600;color:var(--text-bright);">Global + tag cocok</div>
+        <div style="font-size:11px;color:var(--muted);">Foto global (bukan app-specific), tag cocok topik. Contoh: tag "umkm" global.</div>
+      </div>
+      <span class="badge badge-global">global match</span>
+    </div>
+
+    <div class="priority-step">
+      <div class="priority-num" style="background:rgba(96,165,250,0.1);color:var(--blue);">4</div>
+      <div class="flex-1">
+        <div style="font-size:12px;font-weight:600;color:var(--text-bright);">Global random</div>
+        <div style="font-size:11px;color:var(--muted);">Tidak ada tag cocok sama sekali. Ambil random dari global pool.</div>
+      </div>
+      <span class="badge badge-global">random</span>
+    </div>
+
+    <div class="priority-step">
+      <div class="priority-num" style="background:rgba(138,131,120,0.15);color:var(--muted);">5</div>
+      <div class="flex-1">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);">Tanpa foto</div>
+        <div style="font-size:11px;color:var(--muted);">Pool kosong. Artikel publish tanpa foto header, pakai placeholder default.</div>
+      </div>
+      <span class="badge badge-used">no foto</span>
+    </div>
+  </div>
+
+  <!-- ============ FOTO USAGE IN ARTIKEL ============ -->
+  <div class="card">
+    <p class="card-label">Contoh: Foto di Artikel Published</p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <!-- Artikel 1 -->
+      <div style="display:flex;gap:12px;padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:8px;">
+        <div style="width:60px;height:40px;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;opacity:0.4;background:linear-gradient(135deg,#2a2520,#3a3025);"></div>
+        <div class="flex-1">
+          <div style="font-size:12px;font-weight:600;color:var(--text-bright);">Z1 Pos: Digitalisasi Kasir Multi-Toko</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+            15 Oct · Match: <span style="color:var(--gold);">app + tag "kasir"</span> (priority 1)
+          </div>
+        </div>
+        <span class="badge badge-app"> Z1 Pos</span>
+      </div>
+
+      <!-- Artikel 2 -->
+      <div style="display:flex;gap:12px;padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:8px;">
+        <div style="width:60px;height:40px;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;opacity:0.4;background:linear-gradient(135deg,#202a28,#253a35);"></div>
+        <div class="flex-1">
+          <div style="font-size:12px;font-weight:600;color:var(--text-bright);">ZXGym: Jawaban Tuntas Pertanyaan Gym</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+            15 Oct · Match: <span style="color:var(--gold);">app + tag "gym"</span> (priority 1)
+          </div>
+        </div>
+        <span class="badge badge-app"> ZXGym</span>
+      </div>
+
+      <!-- Artikel 3: global fallback -->
+      <div style="display:flex;gap:12px;padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:8px;">
+        <div style="width:60px;height:40px;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;opacity:0.4;background:linear-gradient(135deg,#2a2028,#3a2535);"></div>
+        <div class="flex-1">
+          <div style="font-size:12px;font-weight:600;color:var(--text-bright);">ZXRoom: Optimalkan Bisnis UMKM Booking Ruang</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">
+            15 Oct · Match: <span style="color:var(--blue);">global + tag "umkm"</span> (priority 3 fallback)
+          </div>
+        </div>
+        <span class="badge badge-global"> Global</span>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/db'
-import { getGithubToken } from '@/lib/secrets'
-import { ANGLES, buatPromptArtikel, callGemini, buildFileContent, pushToGitHub, parseGeminiJson, todayWib } from '@/lib/artikel'
+import { generateSatuArtikel, publishScheduled, todayWib } from '@/lib/artikel'
 
-// POST /api/artikel/trigger — generate artikel untuk semua app aktif
+// POST /api/artikel/trigger — cron harian: publish scheduled + generate 1 baru per app
 export async function POST() {
   // Baca pengaturan dari dashboard
   const settingRows = await prisma.pengaturan.findMany({ where: { kunci: { startsWith: 'artikel_' } } })
@@ -23,7 +22,14 @@ export async function POST() {
     return NextResponse.json({ ok: 0, fail: 0, errors: [], skip: `belum waktunya (setting=${jam}, now WIB=${String(nowWib.getUTCHours()).padStart(2, '0')}:00)` })
   }
 
-  // Hanya app yang punya web (url tidak kosong)
+  const tujuanZomet = settings.artikel_tujuan_zomet !== 'false'
+  const tujuanApp = settings.artikel_tujuan_app !== 'false'
+
+  // 1. Publish artikel yang scheduled untuk hari ini
+  const pubResult = await publishScheduled(tujuanZomet, tujuanApp)
+
+  // 2. Generate 1 artikel baru per app untuk hari ini (jika belum ada)
+  //    Target: today + 3 hari (slot berikutnya)
   const allApps = await prisma.promoApp.findMany({
     where: { aktif: true, artikelAktif: true, url: { not: null } },
     orderBy: { urutan: 'asc' },
@@ -31,63 +37,45 @@ export async function POST() {
   const apps = allApps.filter(a => a.url && a.url.trim().length > 0)
 
   if (apps.length === 0) {
-    return NextResponse.json({ ok: 0, fail: 0, errors: [], skip: 'tidak ada app dengan web yang aktif' })
+    return NextResponse.json({ ok: pubResult.ok, fail: pubResult.fail, errors: pubResult.errors, published: pubResult, skip: 'tidak ada app dengan web' })
   }
 
-  const tujuanZomet = settings.artikel_tujuan_zomet !== 'false'
-  const tujuanApp = settings.artikel_tujuan_app !== 'false'
-
   const yyyymmdd = todayWib()
-  let ok = 0
-  let fail = 0
-  const errors: string[] = []
+  let okGen = 0
+  let failGen = 0
+  const errorsGen: string[] = []
+
+  // Target generate: today + 3 hari (isi slot berikutnya)
+  const targetDate = new Date()
+  targetDate.setDate(targetDate.getDate() + 3)
+  targetDate.setHours(0, 0, 0, 0)
+  const targetYyyymmdd = `${targetDate.getFullYear()}${String(targetDate.getMonth() + 1).padStart(2, '0')}${String(targetDate.getDate()).padStart(2, '0')}`
 
   for (const app of apps) {
     try {
-      // Skip kalau sudah published dalam 24 jam
-      const sudah = await prisma.artikelDraft.findFirst({
-        where: { appId: app.id, status: 'published', publishedAt: { gte: new Date(Date.now() - 24 * 3600 * 1000) } },
+      // Skip kalau sudah ada scheduled untuk app+targetDate
+      const existing = await prisma.artikelDraft.findFirst({
+        where: { appId: app.id, scheduledFor: targetDate, status: 'scheduled' },
         select: { id: true },
       })
-      if (sudah) { ok++; continue }
+      if (existing) { okGen++; continue }
 
-      const angle = ANGLES[Math.floor(Math.random() * ANGLES.length)].replace('{nama}', app.nama)
-      const raw = await callGemini(buatPromptArtikel(app, angle))
-      const { judul, slug, deskripsi, tags, konten } = parseGeminiJson(raw)
-
-      const slugAkhir = `${slug}-${yyyymmdd}`
-
-      const draft = await prisma.artikelDraft.create({
-        data: { appId: app.id, judul, slug, deskripsi, tags, konten, status: 'draft' },
-      })
-
-      let published = false
-
-      if (tujuanZomet) {
-        const fileContent = buildFileContent(judul, deskripsi, tags, konten, yyyymmdd)
-        const encoded = Buffer.from(fileContent, 'utf-8').toString('base64')
-        await pushToGitHub(getGithubToken(), `content/artikel/${slugAkhir}.md`, encoded, `feat: artikel harian - ${judul}`)
-        published = true
-      }
-
-      // tujuanApp: artikel tersedia via /api/artikel/publik?appId=X — DB publish cukup
-      if (tujuanApp) {
-        published = true
-      }
-
-      if (published) {
-        await prisma.artikelDraft.update({
-          where: { id: draft.id },
-          data: { status: 'published', publishedAt: new Date(), slug: slugAkhir },
-        })
-      }
-
-      ok++
+      const r = await generateSatuArtikel(app, targetYyyymmdd, { scheduledFor: targetDate })
+      if (r.ok) okGen++
+      else { failGen++; errorsGen.push(`${app.nama}: ${r.error}`) }
     } catch (e) {
-      fail++
-      errors.push(`${app.nama}: ${e instanceof Error ? e.message : String(e)}`)
+      failGen++
+      errorsGen.push(`${app.nama}: ${e instanceof Error ? e.message : String(e)}`)
     }
+    // Jeda 3s antar app
+    await new Promise(r => setTimeout(r, 3000))
   }
 
-  return NextResponse.json({ ok, fail, errors })
+  return NextResponse.json({
+    published: pubResult,
+    generated: { ok: okGen, fail: failGen, errors: errorsGen },
+    ok: pubResult.ok + okGen,
+    fail: pubResult.fail + failGen,
+    errors: [...pubResult.errors, ...errorsGen],
+  })
 }

@@ -3,6 +3,7 @@
 // mengekspor handler/metadata — helper bertipe non-Route yang di-export dari route
 // membikin `next build` gagal: 'X is not a valid Route export field'.
 import { getGeminiKey, getGithubToken } from './secrets'
+import prisma from './db'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
@@ -178,4 +179,206 @@ export async function pushToGitHub(
     const err = await pushRes.json()
     throw new Error('Gagal push ke GitHub: ' + (err.message || pushRes.status))
   }
+}
+
+// ============ IDE POOL ============
+// Priority: app-specific → global → null (auto Gemini)
+export async function ambilIde(appId: number): Promise<{ id: number; teks: string } | null> {
+  // 1. App-specific pending (oldest first)
+  const appIde = await prisma.artikelIde.findFirst({
+    where: { appId, status: 'pending' },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (appIde) return { id: appIde.id, teks: appIde.teks }
+
+  // 2. Global pool pending (oldest first)
+  const globalIde = await prisma.artikelIde.findFirst({
+    where: { appId: null, status: 'pending' },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (globalIde) return { id: globalIde.id, teks: globalIde.teks }
+
+  return null
+}
+
+export async function tandaiIdeUsed(ideId: number, artikelId: number) {
+  await prisma.artikelIde.update({
+    where: { id: ideId },
+    data: { status: 'used', artikelId, usedAt: new Date() },
+  })
+}
+
+// ============ FOTO LRU MATCHING ============
+// Priority chain:
+// 1. App + tag match
+// 2. App only (any tag)
+// 3. Global + tag match
+// 4. Global random (any tag)
+// 5. null (no foto)
+export async function ambilFoto(appId: number, articleTags: string[]): Promise<{ id: number; url: string } | null> {
+  const lowerTags = articleTags.map(t => t.toLowerCase())
+
+  // 1. App + tag match (LRU: lastUsedAt NULLS FIRST)
+  let foto = await prisma.artikelFoto.findFirst({
+    where: { appId, tags: { hasSome: lowerTags } },
+    orderBy: [{ lastUsedAt: { sort: 'asc', nulls: 'first' } }, { useCount: 'asc' }],
+  })
+  if (foto) return { id: foto.id, url: foto.url }
+
+  // 2. App only
+  foto = await prisma.artikelFoto.findFirst({
+    where: { appId },
+    orderBy: [{ lastUsedAt: { sort: 'asc', nulls: 'first' } }, { useCount: 'asc' }],
+  })
+  if (foto) return { id: foto.id, url: foto.url }
+
+  // 3. Global + tag match
+  foto = await prisma.artikelFoto.findFirst({
+    where: { appId: null, tags: { hasSome: lowerTags } },
+    orderBy: [{ lastUsedAt: { sort: 'asc', nulls: 'first' } }, { useCount: 'asc' }],
+  })
+  if (foto) return { id: foto.id, url: foto.url }
+
+  // 4. Global random
+  foto = await prisma.artikelFoto.findFirst({
+    where: { appId: null },
+    orderBy: [{ lastUsedAt: { sort: 'asc', nulls: 'first' } }, { useCount: 'asc' }],
+  })
+  if (foto) return { id: foto.id, url: foto.url }
+
+  return null
+}
+
+export async function tandaiFotoUsed(fotoId: number) {
+  await prisma.artikelFoto.update({
+    where: { id: fotoId },
+    data: { useCount: { increment: 1 }, lastUsedAt: new Date() },
+  })
+}
+
+// ============ GENERATE HELPER ============
+// Shared antara trigger (daily) dan pre-generate (batch).
+// Mengembalikan artikel draft + foto yang terpilih.
+export interface GenerateResult {
+  ok: boolean
+  draftId?: number
+  judul?: string
+  slug?: string
+  fotoUrl?: string
+  error?: string
+}
+
+export async function generateSatuArtikel(
+  app: { id: number; nama: string; tagline: string; fitur: string[]; url?: string | null },
+  yyyymmdd: string,
+  options?: {
+    scheduledFor?: Date        // jika pre-generate, set target date
+    ideOverride?: string       // jika ada ide manual, skip pool
+    dryRun?: boolean
+  },
+): Promise<GenerateResult> {
+  const dryRun = options?.dryRun ?? false
+
+  // Ambil ide dari pool (atau override)
+  const ide = options?.ideOverride
+    ? null
+    : await ambilIde(app.id)
+
+  // Bangun prompt: kalau ada ide, pakai ide sebagai angle
+  let angle: string
+  if (ide) {
+    angle = ide.teks
+  } else if (options?.ideOverride) {
+    angle = options.ideOverride
+  } else {
+    angle = ANGLES[Math.floor(Math.random() * ANGLES.length)].replace('{nama}', app.nama)
+  }
+
+  const raw = await callGemini(buatPromptArtikel(app, angle))
+  const { judul, slug, deskripsi, tags, konten } = parseGeminiJson(raw)
+  const slugAkhir = `${slug}-${yyyymmdd}`
+
+  // Ambil foto via LRU matching
+  const foto = await ambilFoto(app.id, tags)
+  const fotoUrl = foto?.url || undefined
+
+  const draft = await prisma.artikelDraft.create({
+    data: {
+      appId: app.id,
+      judul, slug: slugAkhir, deskripsi, tags, konten,
+      status: options?.scheduledFor ? 'scheduled' : 'draft',
+      scheduledFor: options?.scheduledFor,
+      fotoId: foto?.id,
+      ideId: ide?.id,
+    },
+  })
+
+  // Tandai ide sebagai used
+  if (ide) await tandaiIdeUsed(ide.id, draft.id)
+  // Tandai foto LRU
+  if (foto) await tandaiFotoUsed(foto.id)
+
+  if (dryRun) {
+    return { ok: true, draftId: draft.id, judul, slug: slugAkhir, fotoUrl }
+  }
+
+  return { ok: true, draftId: draft.id, judul, slug: slugAkhir, fotoUrl }
+}
+
+// ============ PUBLISH SCHEDULED ============
+// Publish artikel yang scheduledFor = today.
+// Dipanggil cron harian sebelum generate baru.
+export async function publishScheduled(
+  tujuanZomet: boolean,
+  tujuanApp: boolean,
+): Promise<{ ok: number; fail: number; errors: string[] }> {
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const todayEnd = new Date(todayStart.getTime() + 24 * 3600 * 1000)
+
+  const scheduled = await prisma.artikelDraft.findMany({
+    where: {
+      status: 'scheduled',
+      scheduledFor: { gte: todayStart, lt: todayEnd },
+    },
+    include: { app: { select: { nama: true, emoji: true } } },
+  })
+
+  let ok = 0
+  let fail = 0
+  const errors: string[] = []
+
+  for (const draft of scheduled) {
+    try {
+      let published = false
+      const yyyymmdd = draft.scheduledFor!
+        ? `${draft.scheduledFor.getFullYear()}${String(draft.scheduledFor.getMonth() + 1).padStart(2, '0')}${String(draft.scheduledFor.getDate()).padStart(2, '0')}`
+        : todayWib()
+
+      if (tujuanZomet) {
+        const fileContent = buildFileContent(draft.judul, draft.deskripsi, draft.tags, draft.konten, yyyymmdd, draft.gambarPath || undefined, draft.youtubeUrl || undefined)
+        const encoded = Buffer.from(fileContent, 'utf-8').toString('base64')
+        await pushToGitHub(getGithubToken(), `content/artikel/${draft.slug}.md`, encoded, `feat: artikel scheduled - ${draft.judul}`)
+        published = true
+      }
+
+      if (tujuanApp) {
+        published = true
+      }
+
+      if (published) {
+        await prisma.artikelDraft.update({
+          where: { id: draft.id },
+          data: { status: 'published', publishedAt: new Date() },
+        })
+      }
+
+      ok++
+    } catch (e) {
+      fail++
+      errors.push(`${draft.app?.nama || 'unknown'}: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  return { ok, fail, errors }
 }

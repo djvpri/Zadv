@@ -1,82 +1,12 @@
-// Cron harian: generate artikel utk SEMUA app aktif lalu publish
-// ke repo `djvpri/zomet-main` (content/artikel/) dan/atau DB Zadv (untuk /api/artikel/publik).
-// Tiap app yang artikelAktif=true dapat 1 artikel per hari.
+// Cron harian: publish scheduled artikel + generate 1 baru per app.
 // Dipanggil cron VPS tiap 07:00 WIB → `npx tsx scripts/artikel-harian.ts`.
 //
 // Env: DATABASE_URL, GEMINI_API_KEY, GITHUB_TOKEN (wajib), DRY_RUN=1 → skip push.
 
 import prisma from '../src/lib/db'
-import { getGithubToken } from '../src/lib/secrets'
-import { ANGLES, buatPromptArtikel, callGemini, buildFileContent, pushToGitHub, parseGeminiJson, todayWib } from '../src/lib/artikel'
-
-interface HasilApp {
-  appId: number
-  nama: string
-  status: 'ok' | 'skip' | 'fail'
-  judul?: string
-  url?: string
-  error?: string
-}
-
-async function prosesSatuApp(
-  app: { id: number; nama: string; tagline: string; fitur: string[]; url?: string | null },
-  yyyymmdd: string,
-  dryRun: boolean,
-  tujuanZomet: boolean,
-  tujuanApp: boolean,
-): Promise<HasilApp> {
-  // Idempotent per app: skip kalau app ini sudah punya artikel published hari ini
-  const sudah = await prisma.artikelDraft.findFirst({
-    where: { appId: app.id, status: 'published', publishedAt: { gte: new Date(Date.now() - 24 * 3600 * 1000) } },
-    select: { id: true },
-  })
-  if (sudah) return { appId: app.id, nama: app.nama, status: 'skip' }
-
-  const angle = ANGLES[Math.floor(Math.random() * ANGLES.length)].replace('{nama}', app.nama)
-  const raw = await callGemini(buatPromptArtikel(app, angle))
-  const { judul, slug, deskripsi, tags, konten } = parseGeminiJson(raw)
-
-  const slugAkhir = `${slug}-${yyyymmdd}`
-
-  const draft = await prisma.artikelDraft.create({
-    data: { appId: app.id, judul, slug, deskripsi, tags, konten, status: 'draft' },
-  })
-
-  if (dryRun) {
-    console.log(`  DRY_RUN [${app.nama}]: skip push. URL rencana: https://www.zomet.my.id/artikel/${slugAkhir}`)
-    return { appId: app.id, nama: app.nama, status: 'ok', judul, url: `https://www.zomet.my.id/artikel/${slugAkhir}` }
-  }
-
-  let published = false
-  let url: string | undefined
-
-  if (tujuanZomet) {
-    const fileContent = buildFileContent(judul, deskripsi, tags, konten, yyyymmdd)
-    const encoded = Buffer.from(fileContent, 'utf-8').toString('base64')
-    await pushToGitHub(getGithubToken(), `content/artikel/${slugAkhir}.md`, encoded, `feat: artikel harian - ${judul}`)
-    url = `https://www.zomet.my.id/artikel/${slugAkhir}`
-    published = true
-  }
-
-  // tujuanApp: artikel tersedia via /api/artikel/publik?appId=X — DB publish cukup
-  if (tujuanApp) {
-    published = true
-  }
-
-  if (published) {
-    await prisma.artikelDraft.update({
-      where: { id: draft.id },
-      data: { status: 'published', publishedAt: new Date(), slug: slugAkhir },
-    })
-  }
-
-  console.log(`  ✓ [${app.nama}] ${judul}`)
-  if (url) console.log(`    URL: ${url}`)
-  return { appId: app.id, nama: app.nama, status: 'ok', judul, url }
-}
+import { generateSatuArtikel, publishScheduled, todayWib } from '../src/lib/artikel'
 
 async function main() {
-  const yyyymmdd = todayWib()
   const dryRun = process.env.DRY_RUN === '1'
 
   // Baca pengaturan dari dashboard
@@ -101,37 +31,64 @@ async function main() {
   const tujuanZomet = settings.artikel_tujuan_zomet !== 'false'
   const tujuanApp = settings.artikel_tujuan_app !== 'false'
 
-  // Hanya app yang punya web (url tidak kosong)
+  // 1. Publish artikel yang scheduled untuk hari ini
+  console.log('1. Publish scheduled articles...')
+  const pubResult = await publishScheduled(tujuanZomet, tujuanApp)
+  console.log(`   Published: ${pubResult.ok}, Failed: ${pubResult.fail}`)
+  if (pubResult.errors.length) pubResult.errors.forEach(e => console.error(`   ✕ ${e}`))
+
+  // 2. Generate 1 artikel baru per app untuk today+3
   const allApps = await prisma.promoApp.findMany({
     where: { aktif: true, artikelAktif: true, url: { not: null } },
     orderBy: { urutan: 'asc' },
   })
   const apps = allApps.filter(a => a.url && a.url.trim().length > 0)
+
   if (apps.length === 0) {
-    console.log('SKIP: tidak ada app dengan artikelAktif=true.')
+    console.log('SKIP: tidak ada app dengan web yang aktif.')
     return
   }
 
-  console.log(`Artikel harian ${yyyymmdd}: ${apps.length} app aktif.${dryRun ? ' DRY_RUN.' : ''}`)
-  const hasil: HasilApp[] = []
+  const targetDate = new Date()
+  targetDate.setDate(targetDate.getDate() + 3)
+  targetDate.setHours(0, 0, 0, 0)
+  const targetYyyymmdd = `${targetDate.getFullYear()}${String(targetDate.getMonth() + 1).padStart(2, '0')}${String(targetDate.getDate()).padStart(2, '0')}`
+
+  console.log(`\n2. Generate artikel baru untuk ${targetYyyymmdd} (${apps.length} app)...${dryRun ? ' DRY_RUN.' : ''}`)
+
+  let okGen = 0
+  let failGen = 0
 
   for (const app of apps) {
     try {
-      const r = await prosesSatuApp(app, yyyymmdd, dryRun, tujuanZomet, tujuanApp)
-      hasil.push(r)
+      const existing = await prisma.artikelDraft.findFirst({
+        where: { appId: app.id, scheduledFor: targetDate, status: 'scheduled' },
+        select: { id: true },
+      })
+      if (existing) {
+        console.log(`  ⊙ [${app.nama}] sudah ada scheduled untuk ${targetYyyymmdd}`)
+        continue
+      }
+
+      const r = await generateSatuArtikel(app, targetYyyymmdd, { scheduledFor: targetDate, dryRun })
+      if (r.ok) {
+        okGen++
+        console.log(`  ✓ [${app.nama}] ${r.judul}`)
+        if (r.fotoUrl) console.log(`    foto: ${r.fotoUrl}`)
+      } else {
+        failGen++
+        console.error(`  ✕ [${app.nama}] ${r.error}`)
+      }
     } catch (e) {
+      failGen++
       const msg = e instanceof Error ? e.message : String(e)
       console.error(`  ✕ [${app.nama}] ${msg}`)
-      hasil.push({ appId: app.id, nama: app.nama, status: 'fail', error: msg })
     }
     // Jeda 3 detik antar app agar tidak kena rate limit Gemini
     await new Promise(r => setTimeout(r, 3000))
   }
 
-  const ok = hasil.filter(h => h.status === 'ok').length
-  const skip = hasil.filter(h => h.status === 'skip').length
-  const fail = hasil.filter(h => h.status === 'fail').length
-  console.log(`\nSELESAI: ${ok} published, ${skip} skip, ${fail} failed.`)
+  console.log(`\nSELESAI: published=${pubResult.ok}, generated=${okGen}, failed=${pubResult.fail + failGen}.`)
 }
 
 async function isMainModule(): Promise<boolean> {

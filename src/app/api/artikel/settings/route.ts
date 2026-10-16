@@ -31,6 +31,9 @@ export async function GET() {
   const draftCount = await prisma.artikelDraft.count({
     where: { status: 'draft' },
   })
+  const scheduledCount = await prisma.artikelDraft.count({
+    where: { status: 'scheduled' },
+  })
   const failedCount = await prisma.artikelDraft.count({
     where: { status: 'failed' },
   })
@@ -48,7 +51,7 @@ export async function GET() {
       artikelAktif: a.artikelAktif,
       punyaWeb: !!a.url,
     })),
-    stats: { publishedCount, draftCount, failedCount },
+    stats: { publishedCount, draftCount, scheduledCount, failedCount },
   })
 }
 

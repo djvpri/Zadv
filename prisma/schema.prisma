@@ -24,6 +24,8 @@ model PromoApp {
   kontens   KontenPromo[]
   videoJobs VideoJob[]
   artikels  ArtikelDraft[]
+  artikelIdes  ArtikelIde[]
+  artikelFotos ArtikelFoto[]
 }
 
 model KontenPromo {
@@ -118,23 +120,57 @@ model MusicTrack {
 }
 
 model ArtikelDraft {
-  id          Int       @id @default(autoincrement())
-  appId       Int?
-  app         PromoApp? @relation(fields: [appId], references: [id], onDelete: SetNull)
-  judul       String
-  slug        String
-  deskripsi   String
-  tags        String[]
-  konten      String    @db.Text
-  youtubeUrl  String?
-  gambarPath  String?   // path relatif di GitHub: public/artikel-gambar/{slug}.ext
-  status      String    @default("draft") // 'draft' | 'published'
-  publishedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           Int       @id @default(autoincrement())
+  appId        Int?
+  app          PromoApp? @relation(fields: [appId], references: [id], onDelete: SetNull)
+  judul        String
+  slug         String
+  deskripsi    String
+  tags         String[]
+  konten       String    @db.Text
+  youtubeUrl   String?
+  gambarPath   String?   // path relatif di GitHub: public/artikel-gambar/{slug}.ext
+  fotoId       Int?      // foto dari ArtikelFoto pool, LRU-picked saat generate
+  status       String    @default("draft") // 'draft' | 'published' | 'scheduled' | 'failed'
+  publishedAt  DateTime?
+  scheduledFor DateTime? // tanggal target publish (untuk pre-generate)
+  ideId        Int?      // ide yang dipakai (nullable, artikel auto-generate tidak punya ide)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status])
   @@index([appId, status])
+  @@index([scheduledFor])
+  @@index([status, scheduledFor])
+}
+
+model ArtikelIde {
+  id        Int       @id @default(autoincrement())
+  appId     Int?      // null = global pool, non-null = spesifik app
+  app       PromoApp? @relation(fields: [appId], references: [id], onDelete: Cascade)
+  teks      String
+  status    String    @default("pending") // 'pending' | 'used'
+  artikelId Int?      // artikel yang pakai ide ini (set saat dipakai)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([appId, status])
+  @@index([status])
+}
+
+model ArtikelFoto {
+  id          Int       @id @default(autoincrement())
+  appId       Int?      // null = global pool, non-null = spesifik app
+  app         PromoApp? @relation(fields: [appId], references: [id], onDelete: Cascade)
+  url         String    // path/URL foto (relative to /public/uploads/ atau full URL)
+  filename    String    // nama file asli
+  tags        String[]  // tag untuk matching: ["kasir", "umkm", ...]
+  useCount    Int       @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([appId])
+  @@index([tags])
 }
 
 model Pengaturan {

@@ -30,6 +30,8 @@ export async function GET(req: Request) {
       slug: a.slug,
       status: a.status,
       publishedAt: a.publishedAt,
+      scheduledFor: a.scheduledFor,
+      fotoId: a.fotoId,
       createdAt: a.createdAt,
     })),
   })

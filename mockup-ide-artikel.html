@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Input Ide Artikel</title>
+<style>
+  :root {
+    --bg: #1C1917;
+    --bg-card: rgba(255,255,255,0.03);
+    --border: rgba(255,255,255,0.1);
+    --text: #CFC9BE;
+    --text-bright: #E7E2DC;
+    --muted: #8A8378;
+    --gold: #D8A23D;
+    --gold-hover: #E3B458;
+    --green: #4ADE80;
+    --yellow: #FBBF24;
+    --red: #F87171;
+    --blue: #60A5FA;
+    --purple: #A78BFA;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, system-ui, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-global { background: rgba(96,165,250,0.15); color: var(--blue); }
+  .badge-app { background: rgba(216,162,61,0.15); color: var(--gold); }
+  .badge-used { background: rgba(138,131,120,0.15); color: var(--muted); }
+  .badge-pending { background: rgba(74,222,128,0.15); color: var(--green); }
+
+  .btn-gold {
+    background: var(--gold);
+    color: var(--bg);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-gold:hover { background: var(--gold-hover); }
+  .btn-gold:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 11px; font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text); }
+  .btn-danger {
+    background: transparent;
+    color: var(--red);
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.6;
+  }
+  .btn-danger:hover { opacity: 1; }
+
+  .input-text {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    font-family: inherit;
+  }
+  .input-text:focus { border-color: var(--gold); }
+  .input-text::placeholder { color: var(--muted); }
+
+  .select {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text);
+    outline: none;
+    cursor: pointer;
+  }
+  .select:focus { border-color: var(--gold); }
+
+  .ide-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: border-color .15s;
+  }
+  .ide-row:hover { border-color: rgba(216,162,61,0.2); }
+  .ide-row.used { opacity: 0.45; }
+  .ide-row.used .ide-teks { text-decoration: line-through; }
+
+  .ide-teks {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-bright);
+  }
+  .ide-meta {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .ide-queue-num {
+    width: 22px; height: 22px;
+    border-radius: 999px;
+    background: rgba(216,162,61,0.15);
+    color: var(--gold);
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .emoji { font-size: 16px; flex-shrink: 0; }
+  .app-name { font-size: 12px; font-weight: 600; color: var(--text-bright); }
+
+  .flex { display: flex; }
+  .items-center { align-items: center; }
+  .gap-2 { gap: 8px; }
+  .gap-3 { gap: 12px; }
+  .justify-between { justify-content: space-between; }
+  .ml-auto { margin-left: auto; }
+  .flex-col { flex-direction: column; }
+  .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .flex-1 { flex: 1; }
+
+  .label-sm { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+  }
+  .tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px; height: 18px;
+    border-radius: 999px;
+    font-size: 10px;
+    margin-left: 6px;
+    padding: 0 5px;
+  }
+  .tab.active .tab-count { background: rgba(216,162,61,0.2); color: var(--gold); }
+  .tab:not(.active) .tab-count { background: rgba(255,255,255,0.08); color: var(--muted); }
+
+  .empty-state {
+    text-align: center;
+    padding: 24px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .quick-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .chip {
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .chip:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(216,162,61,0.08);
+  }
+
+  .stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .drag-handle {
+    color: var(--muted);
+    cursor: grab;
+    font-size: 14px;
+    opacity: 0.4;
+    flex-shrink: 0;
+  }
+  .drag-handle:hover { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ============ HEADER ============ -->
+  <div class="flex items-center justify-between" style="margin-bottom:20px;">
+    <h2 style="font-size:14px;font-weight:600;color:var(--text);">Ide <span style="color:var(--gold);">Artikel</span></h2>
+    <div class="flex items-center gap-3">
+      <span class="stat-pill" style="background:rgba(74,222,128,0.15);color:var(--green);">7 pending</span>
+      <span class="stat-pill" style="background:rgba(138,131,120,0.15);color:var(--muted);">12 used</span>
+    </div>
+  </div>
+
+  <!-- ============ INPUT ============ -->
+  <div class="card">
+    <p class="card-label">Tambah Ide Artikel</p>
+
+    <!-- Input row -->
+    <div class="flex items-center gap-2" style="margin-bottom: 4px;">
+      <input
+        type="text"
+        class="input-text"
+        placeholder="Contoh: Tips efisiensi kasir untuk warung kecil..."
+      />
+      <select class="select">
+        <option value="">🌐 Global (semua app)</option>
+        <option value="4">🛒 Z1 Pos</option>
+        <option value="5">💪 ZXGym</option>
+        <option value="8">🏠 ZXRoom</option>
+      </select>
+      <button class="btn-gold">+ Tambah</button>
+    </div>
+
+    <!-- Quick chips -->
+    <div class="quick-chips">
+      <span style="font-size:10px;color:var(--muted);margin-right:4px;align-self:center;">Saran:</span>
+      <span class="chip">Tips UMKM</span>
+      <span class="chip">Kisah sukses</span>
+      <span class="chip">Panduan pemula</span>
+      <span class="chip">FAQ pelanggan</span>
+      <span class="chip">Perbandingan manual vs digital</span>
+      <span class="chip">Tren bisnis 2026</span>
+      <span class="chip">Cara hemat biaya</span>
+      <span class="chip">Otomatisasi harian</span>
+    </div>
+  </div>
+
+  <!-- ============ TABS ============ -->
+  <div class="tabs">
+    <div class="tab active">
+      Pending <span class="tab-count">7</span>
+    </div>
+    <div class="tab">
+      Sudah Dipakai <span class="tab-count">12</span>
+    </div>
+  </div>
+
+  <!-- ============ PENDING IDEAS ============ -->
+  <div class="card">
+    <div class="card-header">
+      <p class="card-label" style="margin:0;">Antrian Ide — Dipakai sesuai urutan (drag untuk reorder)</p>
+      <button class="btn-ghost">Bersihkan Kosong</button>
+    </div>
+
+    <!-- Global section -->
+    <div style="margin-bottom:14px;">
+      <div class="flex items-center gap-2" style="margin-bottom:8px;">
+        <span class="badge badge-global">🌐 GLOBAL</span>
+        <span style="font-size:11px;color:var(--muted);">Dipakai semua app kalau antrian app kosong</span>
+      </div>
+      <div class="flex flex-col gap-2">
+
+        <div class="ide-row">
+          <span class="drag-handle">⋮⋮</span>
+          <span class="ide-queue-num">1</span>
+          <div class="flex-1">
+            <div class="ide-teks">Tips efisiensi kasir untuk warung kecil di area padat</div>
+            <div class="ide-meta">Ditambahkan 16 Oct 14:30 · Priority: global fallback</div>
+          </div>
+          <span class="badge badge-global">global</span>
+          <button class="btn-danger">✕</button>
+        </div>
+
+        <div class="ide-row">
+          <span class="drag-handle">⋮⋮</span>
+          <span class="ide-queue-num">2</span>
+          <div class="flex-1">
+            <div class="ide-teks">Kisah sukses UMKM yang naik kelas setelah pakai sistem digital</div>
+            <div class="ide-meta">Ditambahkan 16 Oct 14:31 · Priority: global fallback</div>
+          </div>
+          <span class="badge badge-global">global</span>
+          <button class="btn-danger">✕</button>
+        </div>
+
+        <div class="ide-row">
+          <span class="drag-handle">⋮⋮</span>
+          <span class="ide-queue-num">3</span>
+          <div class="flex-1">
+            <div class="ide-teks">Cara mengurangi kesalahan stok dengan inventaris real-time</div>
+            <div class="ide-meta">Ditambahkan 16 Oct 14:32 · Priority: global fallback</div>
+          </div>
+          <span class="badge badge-global">global</span>
+          <button class="btn-danger">✕</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- App-specific section -->
+    <div>
+      <div class="flex items-center gap-2" style="margin-bottom:8px;">
+        <span style="font-size:11px;color:var(--muted);">Spesifik App</span>
+      </div>
+      <div class="flex flex-col gap-2">
+
+        <!-- Z1 Pos specific -->
+        <div class="ide-row">
+          <span class="drag-handle">⋮⋮</span>
+          <span class="ide-queue-num">1</span>
+          <span class="emoji">🛒</span>
+          <div class="flex-1">
+            <div class="ide-teks">Perbandingan kasir manual vs digital: hitung rugi harian</div>
+            <div class="ide-meta">Ditambahkan 16 Oct 14:35 · Z1 Pos · Priority: #1 untuk app ini</div>
+          </div>
+          <span class="badge badge-app">🛒 Z1 Pos</span>
+          <button class="btn-danger">✕</button>
+        </div>
+
+        <div class="ide-row">
+          <span class="drag-handle">⋮⋮</span>
+          <span class="ide-queue-num">2</span>
+          <span class="emoji">🛒</span>
+          <div class="flex-1">
+            <div class="ide-teks">Tips setup multi-toko: beda lokasi, satu dashboard</div>
+            <div class="ide-meta">Ditambahkan 16 Oct 14:36 · Z1 Pos · Priority: #2</div>
+          </div>
+          <span class="badge badge-app">🛒 Z1 Pos</span>
+          <button class="btn-danger">✕</button>
+        </div>
+
+        <!-- ZXGym specific -->
+        <div class="ide-row">
+          <span class="drag-handle">⋮⋮</span>
+          <span class="ide-queue-num">1</span>
+          <span class="emoji">💪</span>
+          <div class="flex-1">
+            <div class="ide-teks">Cara tingkatkan retensi member gym dengan notifikasi otomatis</div>
+            <div class="ide-meta">Ditambahkan 16 Oct 14:38 · ZXGym · Priority: #1</div>
+          </div>
+          <span class="badge badge-app">💪 ZXGym</span>
+          <button class="btn-danger">✕</button>
+        </div>
+
+        <!-- ZXRoom specific -->
+        <div class="ide-row">
+          <span class="drag-handle">⋮⋮</span>
+          <span class="ide-queue-num">1</span>
+          <span class="emoji">🏠</span>
+          <div class="flex-1">
+            <div class="ide-teks">Strategi pricing dinamis untuk kamar harian vs bulanan</div>
+            <div class="ide-meta">Ditambahkan 16 Oct 14:40 · ZXRoom · Priority: #1</div>
+          </div>
+          <span class="badge badge-app">🏠 ZXRoom</span>
+          <button class="btn-danger">✕</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ HOW IT WORKS ============ -->
+  <div class="card" style="background:rgba(167,139,250,0.05);border-color:rgba(167,139,250,0.15);">
+    <p class="card-label" style="color:var(--purple);"> Cara Kerja Priority</p>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div class="flex items-center gap-2" style="font-size:11px;">
+        <span style="color:var(--gold);font-weight:700;width:18px;">1.</span>
+        <span class="badge badge-app" style="min-width:60px;justify-content:center;">App</span>
+        <span style="color:var(--muted);">→ Ambil ide oldest pending untuk app ini</span>
+      </div>
+      <div class="flex items-center gap-2" style="font-size:11px;">
+        <span style="color:var(--gold);font-weight:700;width:18px;">2.</span>
+        <span class="badge badge-global" style="min-width:60px;justify-content:center;">Global</span>
+        <span style="color:var(--muted);">→ Kalau app kosong, ambil dari global pool</span>
+      </div>
+      <div class="flex items-center gap-2" style="font-size:11px;">
+        <span style="color:var(--gold);font-weight:700;width:18px;">3.</span>
+        <span class="badge badge-used" style="min-width:60px;justify-content:center;">Auto</span>
+        <span style="color:var(--muted);">→ Kalau dua-duanya kosong, Gemini generate tema random</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ USED TAB (collapsed preview) ============ -->
+  <div class="card" style="opacity:0.7;">
+    <div class="card-header">
+      <p class="card-label" style="margin:0;"> Sudah Dipakai (klik untuk expand) <span class="tab-count" style="background:rgba(255,255,255,0.08);color:var(--muted);">12</span></p>
+      <span style="font-size:11px;color:var(--muted);cursor:pointer;">▸ expand</span>
+    </div>
+    <!-- Preview: last 2 used -->
+    <div class="flex flex-col gap-2">
+      <div class="ide-row used">
+        <span class="emoji">🛒</span>
+        <div class="flex-1">
+          <div class="ide-teks">Panduan lengkap setup kasir untuk warung kopi pertama kali</div>
+          <div class="ide-meta">Dipakai 15 Oct → artikel #7 · Z1 Pos</div>
+        </div>
+        <span class="badge badge-used">used</span>
+        <a href="#" style="font-size:11px;color:var(--gold);text-decoration:none;">Lihat →</a>
+      </div>
+      <div class="ide-row used">
+        <span class="badge badge-global" style="min-width:20px;justify-content:center;">🌐</span>
+        <div class="flex-1">
+          <div class="ide-teks">5 kesalahan umum UMKM dalam kelola keuangan harian</div>
+          <div class="ide-meta">Dipakai 15 Oct → artikel #5 · ZXGym (global fallback)</div>
+        </div>
+        <span class="badge badge-used">used</span>
+        <a href="#" style="font-size:11px;color:var(--gold);text-decoration:none;">Lihat →</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

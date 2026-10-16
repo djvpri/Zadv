@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Artikel Otomatis + Pre-generate</title>
+<style>
+  :root {
+    --bg: #1C1917;
+    --bg-card: rgba(255,255,255,0.03);
+    --border: rgba(255,255,255,0.1);
+    --border-inner: rgba(255,255,255,0.1);
+    --text: #CFC9BE;
+    --text-bright: #E7E2DC;
+    --muted: #8A8378;
+    --gold: #D8A23D;
+    --gold-hover: #E3B458;
+    --green: #4ADE80;
+    --yellow: #FBBF24;
+    --red: #F87171;
+    --blue: #60A5FA;
+    --purple: #A78BFA;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, system-ui, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+
+  /* Card */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  /* Toggle */
+  .toggle {
+    position: relative;
+    width: 44px; height: 24px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background .2s;
+    flex-shrink: 0;
+    border: none;
+  }
+  .toggle.on { background: rgba(74,222,128,0.15); }
+  .toggle.off { background: rgba(255,255,255,0.1); }
+  .toggle-dot {
+    position: absolute; top: 3px;
+    width: 18px; height: 18px;
+    border-radius: 999px;
+    transition: all .2s;
+  }
+  .toggle.on .toggle-dot { left: 23px; background: var(--green); }
+  .toggle.off .toggle-dot { left: 3px; background: var(--muted); }
+
+  /* Badge */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-published { background: rgba(74,222,128,0.15); color: var(--green); }
+  .badge-draft { background: rgba(251,191,36,0.15); color: var(--yellow); }
+  .badge-scheduled { background: rgba(167,139,250,0.15); color: var(--purple); }
+  .badge-failed { background: rgba(248,113,113,0.15); color: var(--red); }
+
+  /* Button */
+  .btn-gold {
+    background: var(--gold);
+    color: var(--bg);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-gold:hover { background: var(--gold-hover); }
+  .btn-gold:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-purple {
+    background: rgba(167,139,250,0.15);
+    color: var(--purple);
+    border: 1px solid rgba(167,139,250,0.3);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-purple:hover { background: rgba(167,139,250,0.25); }
+  .btn-ghost {
+    background: rgba(255,255,255,0.05);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px; font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left;
+    font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--muted);
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 8px; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* Timeline */
+  .timeline-day {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .timeline-day:last-child { border-bottom: none; }
+  .timeline-date {
+    width: 80px;
+    flex-shrink: 0;
+    text-align: center;
+  }
+  .timeline-date-num {
+    font-size: 22px; font-weight: 700;
+    color: var(--text-bright);
+    line-height: 1;
+  }
+  .timeline-date-day {
+    font-size: 10px; color: var(--muted);
+    text-transform: uppercase; margin-top: 2px;
+  }
+  .timeline-date.today .timeline-date-num { color: var(--gold); }
+  .timeline-date.scheduled .timeline-date-num { color: var(--purple); }
+  .timeline-items { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .timeline-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .emoji { font-size: 16px; }
+  .app-name { font-size: 12px; font-weight: 600; color: var(--text-bright); }
+  .app-url { font-size: 10px; color: var(--muted); font-family: monospace; }
+  .dot { width: 6px; height: 6px; border-radius: 999px; flex-shrink: 0; }
+
+  /* Spinner */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(167,139,250,0.3);
+    border-top-color: var(--purple);
+    border-radius: 999px;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .flex { display: flex; }
+  .items-center { align-items: center; }
+  .gap-2 { gap: 8px; }
+  .gap-3 { gap: 12px; }
+  .gap-5 { gap: 20px; }
+  .justify-between { justify-content: space-between; }
+  .flex-wrap { flex-wrap: wrap; }
+  .ml-auto { margin-left: auto; }
+  .flex-col { flex-direction: column; }
+  .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .select {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text);
+    outline: none;
+  }
+  .select:focus { border-color: var(--gold); }
+
+  .tag-pill {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px; font-weight: 600;
+  }
+  .tag-zomet { background: rgba(216,162,61,0.15); color: var(--gold); }
+  .tag-app { background: rgba(96,165,250,0.15); color: var(--blue); }
+
+  h2 { font-size: 14px; font-weight: 600; color: var(--text); }
+  h2 .accent { color: var(--gold); }
+  .label-sm { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .info-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .gen-progress {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    background: rgba(167,139,250,0.1);
+    border-radius: 6px;
+    font-size: 12px; color: var(--purple);
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ============ HEADER ============ -->
+  <div class="flex items-center justify-between" style="margin-bottom:20px;">
+    <h2>Artikel <span class="accent">Otomatis</span></h2>
+    <div class="flex items-center gap-3">
+      <span class="label-sm">Autopost</span>
+      <button class="toggle on"><span class="toggle-dot"></span></button>
+      <span style="font-size:12px;font-weight:600;color:var(--green);">AKTIF</span>
+    </div>
+  </div>
+
+  <!-- ============ SCHEDULE + TRIGGER ============ -->
+  <div class="card">
+    <div class="flex items-center gap-5 flex-wrap">
+      <div class="flex flex-col gap-2">
+        <span class="label-sm">Jam Posting</span>
+        <select class="select">
+          <option>06:00 WIB</option>
+          <option selected>07:00 WIB</option>
+          <option>08:00 WIB</option>
+          <option>09:00 WIB</option>
+          <option>12:00 WIB</option>
+        </select>
+      </div>
+      <div class="flex flex-col gap-2">
+        <span class="label-sm">App Aktif (punya web)</span>
+        <div class="flex items-center gap-2 px-3 py-1.5" style="background:rgba(216,162,61,0.15);border-radius:6px;">
+          <span style="color:var(--gold);font-weight:700;font-size:14px;">3</span>
+          <span style="color:var(--muted);font-size:12px;">dari 8 app</span>
+        </div>
+      </div>
+
+      <!-- NEW: Pre-generate progress -->
+      <div class="gen-progress">
+        <div class="spinner"></div>
+        <span>Pre-generate 3 hari... 6/9 selesai</span>
+      </div>
+
+      <!-- NEW: Pre-generate button -->
+      <button class="btn-purple ml-auto">
+        ⚡ Pre-generate 3 Hari
+      </button>
+
+      <button class="btn-gold">
+        Generate Sekarang
+      </button>
+    </div>
+  </div>
+
+  <!-- ============ NEW: SCHEDULED TIMELINE ============ -->
+  <div class="card">
+    <div class="flex items-center justify-between" style="margin-bottom: 8px;">
+      <p class="card-label" style="margin:0;"> Jadwal Artikel — 3 Hari ke Depan</p>
+      <span class="badge badge-scheduled">9 scheduled</span>
+    </div>
+
+    <!-- Day: Today (16 Oct) -->
+    <div class="timeline-day">
+      <div class="timeline-date today">
+        <div class="timeline-date-num">16</div>
+        <div class="timeline-date-day">Hari Ini</div>
+      </div>
+      <div class="timeline-items">
+        <div class="timeline-item" style="opacity:0.5;border-style:dashed;">
+          <span style="font-size:11px;color:var(--muted);">Hari ini sudah terbit — lihat riwayat di bawah</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Day: 17 Oct (tomorrow) -->
+    <div class="timeline-day">
+      <div class="timeline-date scheduled">
+        <div class="timeline-date-num">17</div>
+        <div class="timeline-date-day">Jumat</div>
+      </div>
+      <div class="timeline-items">
+        <div class="timeline-item">
+          <span class="dot" style="background:var(--purple);"></span>
+          <span class="badge badge-scheduled">scheduled</span>
+          <span class="emoji">🛒</span>
+          <span class="app-name">Z1 Pos</span>
+          <span style="color:var(--muted);font-size:11px;" class="truncate">Digitalisasi Kasir Multi-Toko untuk UMKM Modern</span>
+          <span class="tag-pill tag-zomet ml-auto">zomet</span>
+          <span class="tag-pill tag-app">/blog</span>
+        </div>
+        <div class="timeline-item">
+          <span class="dot" style="background:var(--purple);"></span>
+          <span class="badge badge-scheduled">scheduled</span>
+          <span class="emoji">💪</span>
+          <span class="app-name">ZXGym</span>
+          <span style="color:var(--muted);font-size:11px;" class="truncate">Tips Memaksimalkan Fitur Manajemen Gym</span>
+          <span class="tag-pill tag-zomet ml-auto">zomet</span>
+          <span class="tag-pill tag-app">/blog</span>
+        </div>
+        <div class="timeline-item">
+          <span class="dot" style="background:var(--purple);"></span>
+          <span class="badge badge-scheduled">scheduled</span>
+          <span class="emoji">🏠</span>
+          <span class="app-name">ZXRoom</span>
+          <span style="color:var(--muted);font-size:11px;" class="truncate">Solusi Cerdas Booking Ruang UMKM</span>
+          <span class="tag-pill tag-zomet ml-auto">zomet</span>
+          <span class="tag-pill tag-app">/blog</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Day: 18 Oct -->
+    <div class="timeline-day">
+      <div class="timeline-date scheduled">
+        <div class="timeline-date-num">18</div>
+        <div class="timeline-date-day">Sabtu</div>
+      </div>
+      <div class="timeline-items">
+        <div class="timeline-item">
+          <span class="dot" style="background:var(--purple);"></span>
+          <span class="badge badge-scheduled">scheduled</span>
+          <span class="emoji">🛒</span>
+          <span class="app-name">Z1 Pos</span>
+          <span style="color:var(--muted);font-size:11px;" class="truncate">Panduan Lengkap Memulai Bisnis Digital</span>
+          <span class="tag-pill tag-zomet ml-auto">zomet</span>
+          <span class="tag-pill tag-app">/blog</span>
+        </div>
+        <div class="timeline-item">
+          <span class="dot" style="background:var(--purple);"></span>
+          <span class="badge badge-scheduled">scheduled</span>
+          <span class="emoji">💪</span>
+          <span class="app-name">ZXGym</span>
+          <span style="color:var(--muted);font-size:11px;" class="truncate">Mengapa Gym Anda Wajib Pakai ZXGym Sekarang</span>
+          <span class="tag-pill tag-zomet ml-auto">zomet</span>
+          <span class="tag-pill tag-app">/blog</span>
+        </div>
+        <div class="timeline-item">
+          <span class="dot" style="background:var(--purple);"></span>
+          <span class="badge badge-scheduled">scheduled</span>
+          <span class="emoji">🏠</span>
+          <span class="app-name">ZXRoom</span>
+          <span style="color:var(--muted);font-size:11px;" class="truncate">Kisah Sukses UMKM dengan Sistem Reservasi Digital</span>
+          <span class="tag-pill tag-zomet ml-auto">zomet</span>
+          <span class="tag-pill tag-app">/blog</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Day: 19 Oct -->
+    <div class="timeline-day">
+      <div class="timeline-date scheduled">
+        <div class="timeline-date-num">19</div>
+        <div class="timeline-date-day">Minggu</div>
+      </div>
+      <div class="timeline-items">
+        <div class="timeline-item">
+          <span class="dot" style="background:var(--purple);"></span>
+          <span class="badge badge-scheduled">scheduled</span>
+          <span class="emoji">🛒</span>
+          <span class="app-name">Z1 Pos</span>
+          <span style="color:var(--muted);font-size:11px;" class="truncate">Perbandingan Kasir Manual vs Digital Z1 Pos</span>
+          <span class="tag-pill tag-zomet ml-auto">zomet</span>
+          <span class="tag-pill tag-app">/blog</span>
+        </div>
+        <div class="timeline-item">
+          <span class="dot" style="background:var(--purple);"></span>
+          <span class="badge badge-scheduled">scheduled</span>
+          <span class="emoji">💪</span>
+          <span class="app-name">ZXGym</span>
+          <span style="color:var(--muted);font-size:11px;" class="truncate">Revolusi Manajemen Gym: Peran ZXGym untuk UMKM</span>
+          <span class="tag-pill tag-zomet ml-auto">zomet</span>
+          <span class="tag-pill tag-app">/blog</span>
+        </div>
+        <div class="timeline-item">
+          <span class="dot" style="background:var(--purple);"></span>
+          <span class="badge badge-scheduled">scheduled</span>
+          <span class="emoji">🏠</span>
+          <span class="app-name">ZXRoom</span>
+          <span style="color:var(--muted);font-size:11px;" class="truncate">Tips Memaksimalkan Omzet dengan Fitur ZXRoom</span>
+          <span class="tag-pill tag-zomet ml-auto">zomet</span>
+          <span class="tag-pill tag-app">/blog</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty future slot -->
+    <div class="timeline-day" style="opacity:0.4;">
+      <div class="timeline-date">
+        <div class="timeline-date-num">20</div>
+        <div class="timeline-date-day">Senin</div>
+      </div>
+      <div class="timeline-items">
+        <div class="timeline-item" style="border-style:dashed;">
+          <span style="font-size:11px;color:var(--muted);">Belum ada artikel — akan di-generate besok (17 Oct) saat cron jalan</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ APP LIST (unchanged) ============ -->
+  <div class="card">
+    <p class="card-label">App Aktif — Artikel Harian</p>
+    <div class="flex flex-col gap-2">
+      <!-- Z1 Pos -->
+      <div class="flex items-center gap-3" style="padding:8px 10px;border-radius:6px;border:1px solid rgba(216,162,61,0.3);background:rgba(255,255,255,0.02);">
+        <button class="toggle on"><span class="toggle-dot"></span></button>
+        <span class="emoji">🛒</span>
+        <div style="flex:1;">
+          <div class="app-name">Z1 Pos</div>
+          <div class="app-url">z1pos.zomet.my.id</div>
+        </div>
+        <span class="tag-pill tag-zomet">zomet</span>
+        <span class="tag-pill tag-app">/blog</span>
+      </div>
+      <!-- ZXGym -->
+      <div class="flex items-center gap-3" style="padding:8px 10px;border-radius:6px;border:1px solid rgba(216,162,61,0.3);background:rgba(255,255,255,0.02);">
+        <button class="toggle on"><span class="toggle-dot"></span></button>
+        <span class="emoji">💪</span>
+        <div style="flex:1;">
+          <div class="app-name">ZXGym</div>
+          <div class="app-url">www.zxgym.zomet.my.id</div>
+        </div>
+        <span class="tag-pill tag-zomet">zomet</span>
+        <span class="tag-pill tag-app">/blog</span>
+      </div>
+      <!-- ZXRoom -->
+      <div class="flex items-center gap-3" style="padding:8px 10px;border-radius:6px;border:1px solid rgba(216,162,61,0.3);background:rgba(255,255,255,0.02);">
+        <button class="toggle on"><span class="toggle-dot"></span></button>
+        <span class="emoji">🏠</span>
+        <div style="flex:1;">
+          <div class="app-name">ZXRoom</div>
+          <div class="app-url">www.zxroom.zomet.my.id</div>
+        </div>
+        <span class="tag-pill tag-zomet">zomet</span>
+        <span class="tag-pill tag-app">/blog</span>
+      </div>
+      <!-- ZGold (no web, disabled) -->
+      <div class="flex items-center gap-3" style="padding:8px 10px;border-radius:6px;border:1px solid var(--border);opacity:0.5;">
+        <button class="toggle off" style="cursor:not-allowed;opacity:0.3;"><span class="toggle-dot"></span></button>
+        <span class="emoji">💰</span>
+        <div style="flex:1;">
+          <div class="app-name">ZGold</div>
+          <div class="app-url" style="font-style:italic;">belum ada web</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ RIWAYAT (updated) ============ -->
+  <div class="card">
+    <p class="card-label">Riwayat Artikel</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Schedule</th>
+          <th>App</th>
+          <th>Judul</th>
+          <th>Status</th>
+          <th>Tujuan</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Scheduled items -->
+        <tr>
+          <td style="color:var(--purple);">17 Oct</td>
+          <td>🛒 Z1 Pos</td>
+          <td class="truncate" style="max-width:200px;color:var(--text-bright);">Digitalisasi Kasir Multi-Toko untuk UMKM Modern</td>
+          <td><span class="badge badge-scheduled">◐ Scheduled</span></td>
+          <td><span class="tag-pill tag-zomet">zomet</span> <span class="tag-pill tag-app">app</span></td>
+          <td><button class="btn-ghost" style="padding:3px 8px;">Publish Now</button></td>
+        </tr>
+        <tr>
+          <td style="color:var(--purple);">17 Oct</td>
+          <td>💪 ZXGym</td>
+          <td class="truncate" style="max-width:200px;color:var(--text-bright);">Tips Memaksimalkan Fitur Manajemen Gym</td>
+          <td><span class="badge badge-scheduled">◐ Scheduled</span></td>
+          <td><span class="tag-pill tag-zomet">zomet</span> <span class="tag-pill tag-app">app</span></td>
+          <td><button class="btn-ghost" style="padding:3px 8px;">Publish Now</button></td>
+        </tr>
+        <!-- Published items -->
+        <tr>
+          <td style="color:var(--muted);">15 Oct</td>
+          <td>🏠 ZXRoom</td>
+          <td class="truncate" style="max-width:200px;color:var(--text-bright);">Optimalkan Bisnis UMKM: Solusi Cerdas Booking Ruang</td>
+          <td><span class="badge badge-published">✓ Published</span></td>
+          <td><span class="tag-pill tag-zomet">zomet</span> <span class="tag-pill tag-app">app</span></td>
+          <td><a href="#" style="color:var(--gold);font-size:11px;text-decoration:none;">Lihat →</a></td>
+        </tr>
+        <tr>
+          <td style="color:var(--muted);">15 Oct</td>
+          <td>🛒 Z1 Pos</td>
+          <td class="truncate" style="max-width:200px;color:var(--text-bright);">Z1 Pos: Digitalisasi Kasir Multi-Toko, Tinggalkan Manual</td>
+          <td><span class="badge badge-published">✓ Published</span></td>
+          <td><span class="tag-pill tag-zomet">zomet</span> <span class="tag-pill tag-app">app</span></td>
+          <td><a href="#" style="color:var(--gold);font-size:11px;text-decoration:none;">Lihat →</a></td>
+        </tr>
+        <tr>
+          <td style="color:var(--muted);">15 Oct</td>
+          <td>💪 ZXGym</td>
+          <td class="truncate" style="max-width:200px;color:var(--text-bright);">ZXGym: Jawaban Tuntas Pertanyaan Aplikasi Gym Anda</td>
+          <td><span class="badge badge-published">✓ Published</span></td>
+          <td><span class="tag-pill tag-zomet">zomet</span> <span class="tag-pill tag-app">app</span></td>
+          <td><a href="#" style="color:var(--gold);font-size:11px;text-decoration:none;">Lihat →</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============ FOOTER ============ -->
+  <div class="card">
+    <div class="flex items-center gap-5 flex-wrap">
+      <span class="info-row"><span class="dot" style="background:var(--green);"></span>Gemini API</span>
+      <span class="info-row"><span class="dot" style="background:var(--green);"></span>GitHub Token</span>
+      <span class="info-row"><span class="dot" style="background:var(--green);"></span>Database</span>
+      <div class="ml-auto flex gap-5">
+        <span style="font-size:11px;color:var(--muted);">Bulan ini: <strong style="color:var(--text-bright);font-weight:600;">12 published</strong></span>
+        <span style="font-size:11px;color:var(--muted);"><strong style="color:var(--purple);font-weight:600;">9 scheduled</strong></span>
+        <span style="font-size:11px;color:var(--muted);"><strong style="color:var(--yellow);font-weight:600;">3 draft</strong></span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
