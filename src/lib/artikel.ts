@@ -124,7 +124,12 @@ export function buildFileContent(
     date = date.slice(0, 4) + '-' + date.slice(4, 6) + '-' + date.slice(6, 8)
   }
   const tagYaml = tags.map(t => `  - "${t}"`).join('\n')
-  const imageLine = gambarPath ? `\nimage: "${gambarPath}"` : ''
+  // Untuk zomet-main markdown: image harus absolute URL (zomet-main tidak host /api/uploads)
+  // Untuk app landing: gambarPath relative OK (imgUrl helper resolve ke ZADV_API)
+  const imageUrl = gambarPath
+    ? (/^https?:\/\//.test(gambarPath) ? gambarPath : `${process.env.ZADV_PUBLIC_URL || 'http://zpromo.zomet.my.id'}${gambarPath}`)
+    : undefined
+  const imageLine = imageUrl ? `\nimage: "${imageUrl}"` : ''
   const youtubeLine = youtubeUrl ? `\nyoutube: "${youtubeUrl}"` : ''
 
   let body = konten
