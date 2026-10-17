@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     take: limit,
     select: {
       id: true, appId: true, judul: true, slug: true,
-      deskripsi: true, tags: true, publishedAt: true,
+      deskripsi: true, tags: true, publishedAt: true, gambarPath: true,
     },
   })
 

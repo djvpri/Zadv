@@ -309,6 +309,7 @@ export async function generateSatuArtikel(
       status: options?.scheduledFor ? 'scheduled' : 'draft',
       scheduledFor: options?.scheduledFor,
       fotoId: foto?.id,
+      gambarPath: foto?.url,
       ideId: ide?.id,
     },
   })
