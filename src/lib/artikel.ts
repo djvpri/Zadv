@@ -378,7 +378,7 @@ export async function publishScheduled(
       // Foto fallback: kalau draft.gambarPath null (pool kosong saat generate),
       // coba ambilFoto ulang saat publish (pool mungkin sudah diisi setelah generate).
       let gambarPath = draft.gambarPath
-      if (!gambarPath) {
+      if (!gambarPath && draft.appId) {
         const foto = await ambilFoto(draft.appId, draft.tags)
         if (foto) {
           gambarPath = foto.url
