@@ -356,6 +356,20 @@ export async function publishScheduled(
 
   for (const draft of scheduled) {
     try {
+      // Guard: skip kalau app ini sudah published hari ini (cegah dobel publish)
+      const alreadyPublished = await prisma.artikelDraft.findFirst({
+        where: {
+          appId: draft.appId,
+          status: 'published',
+          publishedAt: { gte: todayStart, lt: todayEnd },
+        },
+        select: { id: true },
+      })
+      if (alreadyPublished) {
+        console.log(`  ⊙ [${draft.app?.nama}] sudah published hari ini, skip`)
+        continue
+      }
+
       let published = false
       const yyyymmdd = draft.scheduledFor!
         ? `${draft.scheduledFor.getFullYear()}${String(draft.scheduledFor.getMonth() + 1).padStart(2, '0')}${String(draft.scheduledFor.getDate()).padStart(2, '0')}`
