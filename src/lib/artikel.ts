@@ -375,8 +375,23 @@ export async function publishScheduled(
         ? `${draft.scheduledFor.getFullYear()}${String(draft.scheduledFor.getMonth() + 1).padStart(2, '0')}${String(draft.scheduledFor.getDate()).padStart(2, '0')}`
         : todayWib()
 
+      // Foto fallback: kalau draft.gambarPath null (pool kosong saat generate),
+      // coba ambilFoto ulang saat publish (pool mungkin sudah diisi setelah generate).
+      let gambarPath = draft.gambarPath
+      if (!gambarPath) {
+        const foto = await ambilFoto(draft.appId, draft.tags)
+        if (foto) {
+          gambarPath = foto.url
+          await prisma.artikelDraft.update({
+            where: { id: draft.id },
+            data: { fotoId: foto.id, gambarPath: foto.url },
+          })
+          if (foto?.id) await tandaiFotoUsed(foto.id)
+        }
+      }
+
       if (tujuanZomet) {
-        const fileContent = buildFileContent(draft.judul, draft.deskripsi, draft.tags, draft.konten, yyyymmdd, draft.gambarPath || undefined, draft.youtubeUrl || undefined)
+        const fileContent = buildFileContent(draft.judul, draft.deskripsi, draft.tags, draft.konten, yyyymmdd, gambarPath || undefined, draft.youtubeUrl || undefined)
         const encoded = Buffer.from(fileContent, 'utf-8').toString('base64')
         await pushToGitHub(getGithubToken(), `content/artikel/${draft.slug}.md`, encoded, `feat: artikel scheduled - ${draft.judul}`)
         published = true
